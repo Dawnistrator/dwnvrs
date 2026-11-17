@@ -1,0 +1,54 @@
+---
+import { monogram, type Project } from '../lib/projects';
+
+interface Props {
+  project: Pick<Project, 'title' | 'category' | 'thumbnail_url' | 'isSample'>;
+  priority?: boolean;
+  aspectClass?: string;
+  class?: string;
+}
+
+const { project, priority = false, aspectClass = 'aspect-[16/10]', class: className } = Astro.props;
+const initials = monogram(project.title);
+---
+
+<div
+  class:list={[
+    'relative grid w-full overflow-hidden rounded-lg bg-surface-container-high',
+    aspectClass,
+    className,
+  ]}
+>
+  {
+    project.thumbnail_url ? (
+      <img
+        src={project.thumbnail_url}
+        alt={`${project.title} preview`}
+        width={800}
+        height={500}
+        loading={priority ? 'eager' : 'lazy'}
+        fetchpriority={priority ? 'high' : undefined}
+        decoding={priority ? 'sync' : 'async'}
+        class="h-full w-full object-cover"
+      />
+    ) : (
+      <div
+        aria-hidden="true"
+        class="flex h-full w-full flex-col justify-between border border-outline-variant/60 bg-surface-container-high p-5 sm:p-6"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-label-md text-on-surface-variant">{project.category}</span>
+          {project.isSample && (
+            <span class="rounded-xs border border-outline-variant px-2 py-0.5 text-label-sm text-on-surface-variant">
+              Sample
+            </span>
+          )}
+        </div>
+        <div class="flex items-end justify-between gap-4">
+          <span class="text-body-sm text-on-surface-variant">No preview image</span>
+          <span class="text-display-sm tracking-tight text-primary">{initials}</span>
+        </div>
+      </div>
+    )
+  }
+</div>

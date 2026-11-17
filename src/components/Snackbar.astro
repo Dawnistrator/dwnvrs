@@ -1,0 +1,77 @@
+---
+import Icon from './Icon.astro';
+
+interface Props {
+  initialMessage?: string | null;
+}
+
+const { initialMessage = null } = Astro.props;
+---
+
+<div
+  id="app-snackbar"
+  class="snackbar"
+  role="status"
+  aria-live="polite"
+  aria-atomic="true"
+  hidden={!initialMessage}
+  data-initial-message={initialMessage ?? ''}
+>
+  <span data-snackbar-text class="flex-1 py-2">
+    {initialMessage ?? ''}
+  </span>
+  <button type="button" class="icon-btn" aria-label="Dismiss notification" data-snackbar-close>
+    <Icon name="close" />
+  </button>
+</div>
+
+<script>
+  const snackbar = document.getElementById('app-snackbar');
+  const textEl = snackbar?.querySelector<HTMLElement>('[data-snackbar-text]');
+  const closeBtn = snackbar?.querySelector<HTMLButtonElement>('[data-snackbar-close]');
+  let timer: number | undefined;
+
+  function hideSnackbar() {
+    if (!snackbar) return;
+    snackbar.hidden = true;
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = undefined;
+    }
+  }
+
+  function scheduleHide() {
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(hideSnackbar, 5000);
+  }
+
+  function showSnackbar(message: string) {
+    if (!snackbar || !textEl || !message) return;
+    textEl.textContent = message;
+    snackbar.hidden = false;
+    scheduleHide();
+  }
+
+  closeBtn?.addEventListener('click', hideSnackbar);
+  snackbar?.addEventListener('mouseenter', () => {
+    if (timer) window.clearTimeout(timer);
+  });
+  snackbar?.addEventListener('mouseleave', () => {
+    if (snackbar && !snackbar.hidden) scheduleHide();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && snackbar && !snackbar.hidden) {
+      hideSnackbar();
+    }
+  });
+
+  window.addEventListener('app:snackbar', ((e: CustomEvent<{ message?: string }>) => {
+    if (e.detail?.message) showSnackbar(e.detail.message);
+  }) as EventListener);
+
+  const initial = snackbar?.getAttribute('data-initial-message');
+  if (initial) {
+    scheduleHide();
+  }
+</script>

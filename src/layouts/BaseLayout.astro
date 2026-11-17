@@ -1,0 +1,116 @@
+---
+import { site } from '../config/site';
+import '../styles/global.css';
+import BottomNav from '../components/BottomNav.astro';
+import Footer from '../components/Footer.astro';
+import Snackbar from '../components/Snackbar.astro';
+import TopAppBar from '../components/TopAppBar.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  activeNav?: 'home' | 'projects' | 'about' | 'socials';
+  hidePublicNav?: boolean;
+  robots?: string;
+  snackbarMessage?: string | null;
+}
+
+const {
+  title,
+  description = site.description,
+  activeNav = 'home',
+  hidePublicNav = false,
+  robots,
+  snackbarMessage = null,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content={description} />
+    {robots && <meta name="robots" content={robots} />}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <title>{title}</title>
+  </head>
+  <body
+    data-bottom-nav={hidePublicNav ? undefined : 'true'}
+    class="flex min-h-dvh flex-col bg-background text-on-surface"
+  >
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-label-lg focus:text-on-primary"
+    >
+      Skip to main content
+    </a>
+
+    {!hidePublicNav && <TopAppBar active={activeNav} />}
+
+    <main id="main" tabindex="-1" class="flex-1 focus:outline-none">
+      <slot />
+    </main>
+
+    {!hidePublicNav && <Footer />}
+    {!hidePublicNav && <BottomNav active={activeNav} />}
+    <Snackbar initialMessage={snackbarMessage} />
+
+    {
+      !hidePublicNav && (
+        <script>
+          const desktopNav = document.querySelector('[data-desktop-nav]');
+          const mobileNav = document.querySelector('[data-mobile-nav]');
+
+          if (window.location.pathname === '/' && (desktopNav || mobileNav)) {
+            const sections = [
+              { id: 'top', nav: 'home' },
+              { id: 'projects', nav: 'projects' },
+              { id: 'about', nav: 'about' },
+              { id: 'socials', nav: 'socials' },
+            ]
+              .map((entry) => ({
+                nav: entry.nav,
+                el: document.getElementById(entry.id),
+              }))
+              .filter((entry): entry is { nav: string; el: HTMLElement } => Boolean(entry.el));
+
+            function setActiveNav(navId: string) {
+              for (const container of [desktopNav, mobileNav]) {
+                if (!container) continue;
+                for (const link of container.querySelectorAll<HTMLAnchorElement>('[data-nav-id]')) {
+                  if (link.dataset.navId === navId) {
+                    link.setAttribute('aria-current', 'page');
+                  } else {
+                    link.removeAttribute('aria-current');
+                  }
+                }
+              }
+            }
+
+            if (sections.length > 0 && 'IntersectionObserver' in window) {
+              const observer = new IntersectionObserver(
+                (entries) => {
+                  const visible = entries
+                    .filter((entry) => entry.isIntersecting)
+                    .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+                  if (visible) {
+                    const match = sections.find((s) => s.el === visible.target);
+                    if (match) setActiveNav(match.nav);
+                  }
+                },
+                { rootMargin: '-25% 0px -55% 0px', threshold: [0, 0.2, 0.5] },
+              );
+              for (const s of sections) observer.observe(s.el);
+            }
+          }
+        </script>
+      )
+    }
+  </body>
+</html>

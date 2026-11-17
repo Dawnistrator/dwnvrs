@@ -1,0 +1,43 @@
+---
+import Icon from '../components/Icon.astro';
+import SocialLinksList from '../components/SocialLinksList.astro';
+import { site } from '../config/site';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPublishedSocials } from '../lib/socials';
+
+const socialsResult = await getPublishedSocials(Astro.locals.supabase);
+---
+
+<BaseLayout
+  title={`Social media | ${site.brand}`}
+  description={`Official social media links and profiles for ${site.owner} (${site.brand}).`}
+  activeNav="socials"
+>
+  <div class="container-page space-y-10 py-10 sm:py-14 lg:py-16">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <a href="/" class="btn btn-text">
+        <Icon name="arrow-back" />
+        <span>Back home</span>
+      </a>
+      <a href="/admin?tab=socials" class="btn btn-outlined">
+        Manage links
+      </a>
+    </div>
+
+    <header class="max-w-2xl space-y-4">
+      <p class="text-label-lg text-primary">
+        {site.brand} · {site.owner}
+      </p>
+      <h1 class="text-display-sm text-on-surface sm:text-display-md">
+        Social media
+      </h1>
+      <p class="text-body-lg text-on-surface-variant">
+        All of my active profiles and places to follow what I am building.
+      </p>
+    </header>
+
+    <section aria-label="Social media directory">
+      <SocialLinksList result={socialsResult} headingLevel="h2" />
+    </section>
+  </div>
+</BaseLayout>

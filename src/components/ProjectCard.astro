@@ -1,0 +1,99 @@
+---
+import type { Project } from '../lib/projects';
+import Icon from './Icon.astro';
+import ProjectVisual from './ProjectVisual.astro';
+
+interface Props {
+  project: Project;
+  featuredLayout?: boolean;
+  priority?: boolean;
+}
+
+const { project, featuredLayout = false, priority = false } = Astro.props;
+const visibleStack = project.tech_stack.slice(0, featuredLayout ? 6 : 4);
+const hiddenStackCount = project.tech_stack.length - visibleStack.length;
+const detailHref = `/projects/${project.slug}`;
+---
+
+<article
+  data-project-card
+  data-category={project.category}
+  data-featured={featuredLayout ? 'true' : 'false'}
+  class:list={[
+    'card-filled flex flex-col gap-5 p-5 transition-colors duration-200',
+    featuredLayout && 'md:col-span-full md:grid md:grid-cols-[1.15fr_1fr] md:items-center md:gap-7 md:p-6',
+  ]}
+>
+  <a
+    href={detailHref}
+    class="group block overflow-hidden rounded-lg focus-visible:outline-3 focus-visible:outline-primary"
+  >
+    <ProjectVisual project={project} priority={priority} />
+  </a>
+
+  <div class="flex min-w-0 flex-1 flex-col gap-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-label-md text-primary">{project.category}</span>
+      {
+        project.featured && (
+          <span class="rounded-xs bg-primary-container px-2 py-0.5 text-label-sm text-on-primary-container">
+            Featured
+          </span>
+        )
+      }
+      {
+        project.isSample && (
+          <span class="rounded-xs border border-outline-variant px-2 py-0.5 text-label-sm text-on-surface-variant">
+            Sample entry
+          </span>
+        )
+      }
+    </div>
+
+    <div class="space-y-2">
+      <h3 class:list={['text-on-surface', featuredLayout ? 'text-headline-sm sm:text-headline-md' : 'text-title-lg']}>
+        <a href={detailHref} class="inline-flex min-h-11 items-center hover:text-primary focus-visible:text-primary">
+          {project.title}
+        </a>
+      </h3>
+      <p class="text-body-md text-on-surface-variant">
+        {project.summary}
+      </p>
+    </div>
+
+    {
+      visibleStack.length > 0 && (
+        <ul class="flex flex-wrap gap-2" aria-label="Technologies used">
+          {visibleStack.map((tech) => (
+            <li class="chip-assist">{tech}</li>
+          ))}
+          {hiddenStackCount > 0 && <li class="chip-assist">+{hiddenStackCount} more</li>}
+        </ul>
+      )
+    }
+
+    <div class="mt-auto flex flex-wrap items-center gap-2 pt-1">
+      <a href={detailHref} class="btn btn-tonal">Read case study</a>
+
+      {
+        project.live_url && (
+          <a href={project.live_url} target="_blank" rel="noopener noreferrer" class="btn btn-outlined">
+            <span>Live site</span>
+            <Icon name="open-in-new" />
+            <span class="sr-only">(opens in a new tab)</span>
+          </a>
+        )
+      }
+
+      {
+        project.repo_url && (
+          <a href={project.repo_url} target="_blank" rel="noopener noreferrer" class="btn btn-text">
+            <Icon name="code" />
+            <span>Repository</span>
+            <span class="sr-only">(opens in a new tab)</span>
+          </a>
+        )
+      }
+    </div>
+  </div>
+</article>

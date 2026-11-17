@@ -1,0 +1,106 @@
+---
+import LanyardCard from '../components/LanyardCard.astro';
+import ProjectsSection from '../components/ProjectsSection.astro';
+import SocialLinksList from '../components/SocialLinksList.astro';
+import { site } from '../config/site';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPublishedProjects } from '../lib/projects';
+import { getPublishedSocials } from '../lib/socials';
+
+const [projectsResult, socialsResult] = await Promise.all([
+  getPublishedProjects(Astro.locals.supabase),
+  getPublishedSocials(Astro.locals.supabase),
+]);
+---
+
+<BaseLayout title={`${site.brand} | ${site.owner} (${site.role})`}>
+  <!-- Hero -->
+  <section id="top" aria-labelledby="hero-heading" class="overflow-x-clip pt-10 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-24">
+    <div class="container-page grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-start lg:gap-12">
+      <div class="space-y-6">
+        <p class="text-label-lg text-primary">
+          {site.brand} · {site.role}
+        </p>
+
+        <h1
+          id="hero-heading"
+          class="text-display-sm tracking-tight text-on-surface sm:text-display-md lg:text-display-lg"
+        >
+          Full-stack apps and websites, built with AI.
+        </h1>
+
+        <p class="max-w-xl text-body-lg text-on-surface-variant">
+          {site.bio}
+        </p>
+
+        <div class="flex flex-wrap items-center gap-3 pt-1">
+          <a href="/socials" class="btn btn-accent">Social media</a>
+          <a href="#projects" class="btn btn-outlined">View projects</a>
+        </div>
+      </div>
+
+      <LanyardCard />
+    </div>
+  </section>
+
+  <!-- Projects -->
+  <ProjectsSection result={projectsResult} />
+
+  <!-- About & Skills -->
+  <section id="about" aria-labelledby="about-heading" class="py-12 sm:py-16 lg:py-20">
+    <div class="container-page grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start lg:gap-12">
+      <div class="space-y-4">
+        <h2 id="about-heading" class="text-headline-sm text-on-surface sm:text-headline-md">
+          About &amp; skills
+        </h2>
+        <p class="text-body-lg text-on-surface-variant">
+          I build full-stack web apps and custom websites under {site.brand}, combining AI coding workflows with
+          server-rendered TypeScript and Postgres.
+        </p>
+        <p class="text-body-md text-on-surface-variant">
+          The focus is keeping pages fast in the browser, moving sensitive work to the server, and backing projects
+          with clear data models and access rules.
+        </p>
+      </div>
+
+      <div class="divide-y divide-outline-variant/50 rounded-xl bg-surface-container-low">
+        {
+          site.skills.map((group) => (
+            <div class="grid gap-4 p-5 sm:grid-cols-[0.8fr_1.2fr] sm:items-start sm:p-6">
+              <div class="space-y-1">
+                <h3 class="text-title-md text-on-surface">{group.title}</h3>
+                <p class="text-body-sm text-on-surface-variant">{group.note}</p>
+              </div>
+              <ul class="flex flex-wrap gap-2" aria-label={`${group.title} skills`}>
+                {group.items.map((item) => (
+                  <li class="chip-assist">{item}</li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Social Media -->
+  <section id="socials" aria-labelledby="socials-heading" class="py-12 pb-16 sm:py-16 sm:pb-20 lg:py-20 lg:pb-24">
+    <div class="container-page space-y-8">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div class="max-w-2xl space-y-2">
+          <h2 id="socials-heading" class="text-headline-sm text-on-surface sm:text-headline-md">
+            Social media
+          </h2>
+          <p class="text-body-lg text-on-surface-variant">
+            Where to find my profiles, repositories, and updates across platforms.
+          </p>
+        </div>
+        <a href="/socials" class="btn btn-outlined self-start sm:self-end">
+          All social links
+        </a>
+      </div>
+
+      <SocialLinksList result={socialsResult} compact={true} headingLevel="h3" />
+    </div>
+  </section>
+</BaseLayout>

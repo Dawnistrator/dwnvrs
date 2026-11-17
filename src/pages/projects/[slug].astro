@@ -1,0 +1,197 @@
+---
+import Icon from '../../components/Icon.astro';
+import ProjectVisual from '../../components/ProjectVisual.astro';
+import { site } from '../../config/site';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getProjectBySlug, toParagraphs } from '../../lib/projects';
+
+const slug = Astro.params.slug ?? '';
+const result = await getProjectBySlug(Astro.locals.supabase, slug);
+
+if (result.status === 'not-found') {
+  Astro.response.status = 404;
+} else if (result.status === 'error') {
+  Astro.response.status = 500;
+}
+
+const pageTitle =
+  result.status === 'ok'
+    ? `${result.project.title} | ${site.brand}`
+    : result.status === 'not-found'
+      ? `Project not found | ${site.brand}`
+      : `Could not load project | ${site.brand}`;
+const pageDescription = result.status === 'ok' ? result.project.summary : site.description;
+const paragraphs = result.status === 'ok' ? toParagraphs(result.project.content) : [];
+---
+
+<BaseLayout title={pageTitle} description={pageDescription} activeNav="projects">
+  <div class="container-page py-8 sm:py-12 lg:py-16">
+    <div class="mb-6">
+      <a href="/#projects" class="btn btn-text">
+        <Icon name="arrow-back" />
+        <span>All projects</span>
+      </a>
+    </div>
+
+    {
+      result.status === 'not-found' && (
+        <section class="card-filled max-w-xl space-y-4 p-6 sm:p-8" aria-labelledby="missing-heading">
+          <h1 id="missing-heading" class="text-headline-sm text-on-surface sm:text-headline-md">
+            Project not found
+          </h1>
+          <p class="text-body-lg text-on-surface-variant">
+            No published project matches "{slug}". It may have been unpublished or moved.
+          </p>
+          <div>
+            <a href="/#projects" class="btn btn-tonal">
+              Return to projects
+            </a>
+          </div>
+        </section>
+      )
+    }
+
+    {
+      result.status === 'error' && (
+        <section role="alert" class="rounded-card border border-error bg-surface-container-low p-6 sm:p-8 space-y-4">
+          <div class="flex items-center gap-2 text-title-lg text-error">
+            <Icon name="error" class="size-6" />
+            <h1>Could not load project</h1>
+          </div>
+          <p class="text-body-md text-on-surface-variant">
+            Supabase returned an error ({result.message}). Refresh to try again.
+          </p>
+          <div>
+            <a href="/#projects" class="btn btn-outlined">
+              Back to projects
+            </a>
+          </div>
+        </section>
+      )
+    }
+
+    {
+      result.status === 'ok' && (
+        <article class="space-y-10 sm:space-y-12">
+          <header class="space-y-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-label-lg text-primary">{result.project.category}</span>
+              {result.project.featured && (
+                <span class="rounded-xs bg-primary-container px-2.5 py-0.5 text-label-sm text-on-primary-container">
+                  Featured
+                </span>
+              )}
+              {result.project.isSample && (
+                <span class="rounded-xs border border-outline-variant px-2.5 py-0.5 text-label-sm text-on-surface-variant">
+                  Sample entry
+                </span>
+              )}
+            </div>
+
+            <div class="space-y-4">
+              <h1 class="max-w-4xl text-display-sm text-on-surface sm:text-display-md">
+                {result.project.title}
+              </h1>
+              <p class="max-w-3xl text-body-lg text-on-surface-variant">
+                {result.project.summary}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              {result.project.live_url && (
+                <a
+                  href={result.project.live_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-accent"
+                >
+                  <span>Visit live site</span>
+                  <Icon name="open-in-new" />
+                  <span class="sr-only">(opens in a new tab)</span>
+                </a>
+              )}
+              {result.project.repo_url && (
+                <a
+                  href={result.project.repo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-outlined"
+                >
+                  <Icon name="code" />
+                  <span>View source</span>
+                  <span class="sr-only">(opens in a new tab)</span>
+                </a>
+              )}
+              <a href="/socials" class="btn btn-tonal">
+                Social media
+              </a>
+            </div>
+          </header>
+
+          <ProjectVisual
+            project={result.project}
+            priority={true}
+            aspectClass={result.project.thumbnail_url ? 'aspect-[16/10]' : 'min-h-44 sm:min-h-52'}
+            class="rounded-xl"
+          />
+
+          <div class="grid gap-10 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
+            <section aria-labelledby="case-study-heading" class="space-y-5">
+              <h2 id="case-study-heading" class="text-headline-sm text-on-surface">
+                Case study
+              </h2>
+              {paragraphs.length > 0 ? (
+                <div class="space-y-4 text-body-lg leading-relaxed text-on-surface-variant">
+                  {paragraphs.map((p) => (
+                    <p>{p}</p>
+                  ))}
+                </div>
+              ) : (
+                <p class="rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant">
+                  No written case study notes have been added for this project yet.
+                </p>
+              )}
+            </section>
+
+            <aside aria-labelledby="stack-heading" class="card-elevated space-y-4 p-6">
+              <h2 id="stack-heading" class="text-title-lg text-on-surface">
+                Tech stack
+              </h2>
+              {result.project.tech_stack.length > 0 ? (
+                <ul class="flex flex-wrap gap-2">
+                  {result.project.tech_stack.map((tech) => (
+                    <li class="chip-assist">{tech}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p class="text-body-md text-on-surface-variant">No tech tags listed.</p>
+              )}
+            </aside>
+          </div>
+
+          {result.project.gallery_urls.length > 0 && (
+            <section aria-labelledby="gallery-heading" class="space-y-5">
+              <h2 id="gallery-heading" class="text-headline-sm text-on-surface">
+                Gallery
+              </h2>
+              <div class="grid gap-5 sm:grid-cols-2">
+                {result.project.gallery_urls.map((url, idx) => (
+                  <figure class="overflow-hidden rounded-card bg-surface-container-low">
+                    <img
+                      src={url}
+                      alt={`${result.project.title} screenshot ${idx + 1}`}
+                      width={800}
+                      height={500}
+                      loading="lazy"
+                      class="aspect-[16/10] w-full object-cover"
+                    />
+                  </figure>
+                ))}
+              </div>
+            </section>
+          )}
+        </article>
+      )
+    }
+  </div>
+</BaseLayout>

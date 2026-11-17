@@ -1,0 +1,21 @@
+---
+import { site } from '../config/site';
+---
+
+<footer class="border-t border-outline-variant/50 bg-surface-container-lowest">
+  <div class="container-page flex flex-col gap-6 py-10 sm:flex-row sm:items-center sm:justify-between">
+    <div class="space-y-1">
+      <p class="text-title-md text-on-surface">{site.brand}</p>
+      <p class="text-body-md text-on-surface-variant">
+        {site.owner} · {site.role}
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="/#projects" class="btn btn-text">Projects</a>
+      <a href="/#about" class="btn btn-text">About</a>
+      <a href="/socials" class="btn btn-text">Socials</a>
+      <a href="/admin" class="btn btn-text">Admin</a>
+    </div>
+  </div>
+</footer>

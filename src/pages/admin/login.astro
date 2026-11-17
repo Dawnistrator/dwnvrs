@@ -1,0 +1,196 @@
+---
+import { actions, isInputError } from 'astro:actions';
+import Icon from '../../components/Icon.astro';
+import { site } from '../../config/site';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { isSupabaseConfigured } from '../../lib/supabase';
+
+const loginResult = Astro.getActionResult(actions.admin.login);
+if (loginResult?.data?.ok) {
+  return Astro.redirect('/admin');
+}
+
+const fieldErrors = loginResult?.error && isInputError(loginResult.error) ? loginResult.error.fields : {};
+const topError = loginResult?.error && !isInputError(loginResult.error) ? loginResult.error.message : null;
+---
+
+<BaseLayout
+  title={`Admin sign in | ${site.brand}`}
+  description={`Sign in to manage projects and social media links for ${site.brand}.`}
+  hidePublicNav={true}
+  robots="noindex, nofollow"
+>
+  <div class="container-page flex min-h-dvh flex-col items-center justify-center py-10">
+    <div class="card-filled w-full max-w-md space-y-6 rounded-xl p-6 sm:p-8">
+      <div class="space-y-2">
+        <p class="text-label-lg text-primary">{site.brand}</p>
+        <h1 class="text-headline-sm text-on-surface sm:text-headline-md">Admin sign in</h1>
+        <p class="text-body-md text-on-surface-variant">
+          Sign in with an account listed in <code class="text-on-surface">public.admins</code> to edit projects and
+          social media links.
+        </p>
+      </div>
+
+      {
+        !isSupabaseConfigured && (
+          <div
+            role="note"
+            class="rounded-lg border border-outline-variant bg-surface-container-high p-4 text-body-md text-on-surface-variant space-y-2"
+          >
+            <p class="text-title-sm text-on-surface">Supabase is not connected yet</p>
+            <p>
+              Copy <code>.env.example</code> to <code>.env</code>, add <code>PUBLIC_SUPABASE_URL</code> and{' '}
+              <code>PUBLIC_SUPABASE_ANON_KEY</code>, then run <code>supabase/schema.sql</code> in the SQL Editor.
+            </p>
+          </div>
+        )
+      }
+
+      <form method="POST" action={actions.admin.login} data-login-form class="space-y-5">
+        <div
+          hidden={!topError}
+          data-login-alert
+          role="alert"
+          class="flex items-start gap-3 rounded-lg bg-error-container p-4 text-body-md text-on-error-container"
+        >
+          <Icon name="error" class="mt-0.5 size-5" />
+          <p data-login-alert-text>{topError ?? ''}</p>
+        </div>
+
+        <div class="field">
+          <input
+            id="login-email"
+            name="email"
+            type="email"
+            required
+            autocomplete="email"
+            placeholder=" "
+            aria-invalid={fieldErrors.email ? 'true' : undefined}
+            aria-describedby="login-email-error"
+            class="field-input"
+          />
+          <label for="login-email" class="field-label">Email address</label>
+          <p id="login-email-error" class="field-error">
+            <Icon name="error" />
+            <span data-error-for="email">{fieldErrors.email?.[0] ?? 'Enter a valid email address.'}</span>
+          </p>
+        </div>
+
+        <div class="field">
+          <input
+            id="login-password"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            placeholder=" "
+            aria-invalid={fieldErrors.password ? 'true' : undefined}
+            aria-describedby="login-password-error"
+            class="field-input"
+          />
+          <label for="login-password" class="field-label">Password</label>
+          <p id="login-password-error" class="field-error">
+            <Icon name="error" />
+            <span data-error-for="password">{fieldErrors.password?.[0] ?? 'Enter your password.'}</span>
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="submit"
+            disabled={!isSupabaseConfigured}
+            class="btn btn-accent w-full sm:w-auto"
+            data-login-submit
+          >
+            Sign in
+          </button>
+          <a href="/" class="btn btn-text w-full sm:w-auto">
+            <Icon name="arrow-back" />
+            <span>Back to site</span>
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { actions, isInputError } from 'astro:actions';
+
+  const form = document.querySelector<HTMLFormElement>('[data-login-form]');
+  if (form) {
+    form.noValidate = true;
+
+    const submitBtn = form.querySelector<HTMLButtonElement>('[data-login-submit]');
+    const alertBox = form.querySelector<HTMLElement>('[data-login-alert]');
+    const alertText = form.querySelector<HTMLElement>('[data-login-alert-text]');
+
+    function clearErrors() {
+      if (alertBox) alertBox.hidden = true;
+      for (const name of ['email', 'password']) {
+        const input = form!.elements.namedItem(name) as HTMLInputElement | null;
+        input?.removeAttribute('aria-invalid');
+      }
+    }
+
+    function setFieldError(name: string, message: string) {
+      const input = form!.elements.namedItem(name) as HTMLInputElement | null;
+      const errSpan = form!.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
+      if (input) input.setAttribute('aria-invalid', 'true');
+      if (errSpan) errSpan.textContent = message;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const emailInput = form.elements.namedItem('email') as HTMLInputElement | null;
+      const passwordInput = form.elements.namedItem('password') as HTMLInputElement | null;
+
+      if (emailInput && (!emailInput.value.trim() || !emailInput.checkValidity())) {
+        setFieldError('email', 'Enter a valid email address.');
+        emailInput.focus();
+        return;
+      }
+      if (passwordInput && !passwordInput.value) {
+        setFieldError('password', 'Enter your password.');
+        passwordInput.focus();
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Signing in...';
+      }
+
+      try {
+        const { data, error } = await actions.admin.login(new FormData(form));
+        if (error) {
+          if (isInputError(error)) {
+            for (const [key, messages] of Object.entries(error.fields)) {
+              if (messages?.[0]) setFieldError(key, messages[0]);
+            }
+          } else if (alertBox && alertText) {
+            alertText.textContent = error.message;
+            alertBox.hidden = false;
+          }
+          return;
+        }
+
+        if (data?.ok) {
+          window.location.assign('/admin');
+        }
+      } catch {
+        if (alertBox && alertText) {
+          alertText.textContent = 'Network error while signing in. Please try again.';
+          alertBox.hidden = false;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign in';
+        }
+      }
+    });
+  }
+</script>

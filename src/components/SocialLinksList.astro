@@ -1,0 +1,101 @@
+---
+import type { SocialsResult } from '../lib/socials';
+import Icon from './Icon.astro';
+import SocialBrandIcon from './SocialBrandIcon.astro';
+
+interface Props {
+  result: SocialsResult;
+  compact?: boolean;
+  headingLevel?: 'h2' | 'h3';
+}
+
+const { result, compact = false, headingLevel = 'h3' } = Astro.props;
+const list = compact ? result.socials.slice(0, 6) : result.socials;
+const HeadingTag = headingLevel;
+
+const gridColumns =
+  list.length === 1
+    ? 'grid-cols-1 max-w-xl'
+    : list.length === 2 || list.length === 4
+      ? 'grid-cols-1 sm:grid-cols-2'
+      : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+---
+
+{
+  result.status === 'error' ? (
+    <div role="alert" class="rounded-card border border-error bg-surface-container-low p-6 space-y-3">
+      <div class="flex items-center gap-2 text-title-md text-error">
+        <Icon name="error" class="size-5" />
+        <span>Could not load social links</span>
+      </div>
+      <p class="text-body-md text-on-surface-variant">
+        Supabase returned an error ({result.message}). Make sure you have run the latest{' '}
+        <code>supabase/schema.sql</code> in SQL Editor.
+      </p>
+    </div>
+  ) : result.status === 'not-configured' ? (
+    <div
+      role="note"
+      class="card-elevated flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="space-y-1">
+        <p class="text-title-md text-on-surface">Supabase is not connected yet</p>
+        <p class="text-body-md text-on-surface-variant">
+          Configure <code>.env</code> and run <code>supabase/schema.sql</code> to store social media links.
+        </p>
+      </div>
+      <a href="/admin?tab=socials" class="btn btn-tonal">
+        Open admin
+      </a>
+    </div>
+  ) : list.length === 0 ? (
+    <div class="card-elevated flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div class="space-y-1">
+        <p class="text-title-md text-on-surface">No social links added yet</p>
+        <p class="text-body-md text-on-surface-variant">
+          Add your social profiles from the Admin dashboard and they will appear here automatically.
+        </p>
+      </div>
+      <a href="/admin?tab=socials" class="btn btn-tonal">
+        Add social links
+      </a>
+    </div>
+  ) : (
+    <ul class:list={['grid gap-4', gridColumns]}>
+      {list.map((item) => {
+        const isExternal = item.url.startsWith('http://') || item.url.startsWith('https://');
+        return (
+          <li>
+            <a
+              href={item.url}
+              target={isExternal ? '_blank' : undefined}
+              rel={isExternal ? 'noopener noreferrer' : undefined}
+              class="card-filled state-layer flex h-full min-h-24 flex-col justify-between gap-4 p-5 transition-colors hover:bg-surface-container-high"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-3.5">
+                  <span class="inline-flex size-11 shrink-0 items-center justify-center rounded-md bg-secondary-container text-on-secondary-container">
+                    <SocialBrandIcon platform={item.platform} url={item.url} class="size-6" />
+                  </span>
+                  <div class="min-w-0 space-y-0.5">
+                    <HeadingTag class="text-title-lg text-on-surface">{item.platform}</HeadingTag>
+                    {item.handle && <p class="truncate text-label-lg text-primary">{item.handle}</p>}
+                  </div>
+                </div>
+                <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant">
+                  <Icon name={isExternal ? 'open-in-new' : 'link'} class="size-5" />
+                </span>
+              </div>
+
+              {item.description && (
+                <p class="text-body-md text-on-surface-variant">{item.description}</p>
+              )}
+
+              {isExternal && <span class="sr-only">(opens in a new tab)</span>}
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  )
+}

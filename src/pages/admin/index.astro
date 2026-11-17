@@ -1,0 +1,1219 @@
+---
+import { actions, isInputError } from 'astro:actions';
+import Icon from '../../components/Icon.astro';
+import SocialBrandIcon, { SOCIAL_BRAND_PRESETS } from '../../components/SocialBrandIcon.astro';
+import { site } from '../../config/site';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import type { ProjectRow, SocialLinkRow } from '../../lib/database.types';
+
+const logoutResult = Astro.getActionResult(actions.admin.logout);
+if (logoutResult?.data?.ok) {
+  return Astro.redirect('/admin/login');
+}
+
+const supabase = Astro.locals.supabase;
+const user = Astro.locals.user;
+if (!supabase || !user || !Astro.locals.isAdmin) {
+  return Astro.redirect('/admin/login');
+}
+
+const saveProjectResult = Astro.getActionResult(actions.admin.saveProject);
+const deleteProjectResult = Astro.getActionResult(actions.admin.deleteProject);
+const saveSocialResult = Astro.getActionResult(actions.admin.saveSocial);
+const deleteSocialResult = Astro.getActionResult(actions.admin.deleteSocial);
+
+if (deleteProjectResult?.data?.ok) {
+  return Astro.redirect('/admin?deleted=project');
+}
+if (saveSocialResult?.data) {
+  return Astro.redirect(`/admin?tab=socials&savedSocial=${encodeURIComponent(saveSocialResult.data.platform)}`);
+}
+if (deleteSocialResult?.data?.ok) {
+  return Astro.redirect('/admin?tab=socials&deleted=social');
+}
+
+const editParam = Astro.url.searchParams.get('edit');
+const editSocialParam = Astro.url.searchParams.get('editSocial');
+const tabParam = Astro.url.searchParams.get('tab');
+const savedSlugParam = Astro.url.searchParams.get('saved');
+const savedSocialParam = Astro.url.searchParams.get('savedSocial');
+const deletedParam = Astro.url.searchParams.get('deleted');
+
+let initialTab: 'projects' | 'socials' = tabParam === 'socials' ? 'socials' : 'projects';
+if (saveSocialResult || deleteSocialResult || editSocialParam) {
+  initialTab = 'socials';
+}
+
+const [projectsRes, socialsRes] = await Promise.all([
+  supabase
+    .from('projects')
+    .select('*')
+    .order('featured', { ascending: false })
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false }),
+  supabase
+    .from('social_links')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true }),
+]);
+
+const projects: ProjectRow[] = projectsRes.data ?? [];
+const socialLinks: SocialLinkRow[] = socialsRes.data ?? [];
+
+const editingProject =
+  editParam && !deleteProjectResult?.data?.ok ? projects.find((p) => p.id === editParam) ?? null : null;
+const editingSocial =
+  editSocialParam && !deleteSocialResult?.data?.ok ? socialLinks.find((s) => s.id === editSocialParam) ?? null : null;
+
+const saveFieldErrors = saveProjectResult?.error && isInputError(saveProjectResult.error) ? saveProjectResult.error.fields : {};
+const saveTopError =
+  saveProjectResult?.error && !isInputError(saveProjectResult.error) ? saveProjectResult.error.message : null;
+
+const socialFieldErrors = saveSocialResult?.error && isInputError(saveSocialResult.error) ? saveSocialResult.error.fields : {};
+const socialTopError =
+  saveSocialResult?.error && !isInputError(saveSocialResult.error) ? saveSocialResult.error.message : null;
+
+let snackbarMessage: string | null = null;
+if (saveProjectResult?.data) {
+  snackbarMessage = saveProjectResult.data.created
+    ? `Project "${saveProjectResult.data.slug}" created.`
+    : `Project "${saveProjectResult.data.slug}" updated.`;
+} else if (savedSlugParam) {
+  snackbarMessage = `Project "${savedSlugParam}" saved.`;
+} else if (savedSocialParam) {
+  snackbarMessage = `Social link "${savedSocialParam}" saved.`;
+} else if (deletedParam === 'project') {
+  snackbarMessage = 'Project deleted.';
+} else if (deletedParam === 'social') {
+  snackbarMessage = 'Social link deleted.';
+}
+---
+
+<BaseLayout
+  title={`Admin | ${site.brand}`}
+  description={`Manage portfolio projects and social media links for ${site.brand}.`}
+  hidePublicNav={true}
+  robots="noindex, nofollow"
+  snackbarMessage={snackbarMessage}
+>
+  <header class="sticky top-0 z-30 border-b border-outline-variant/50 bg-surface">
+    <div class="container-page flex min-h-16 flex-wrap items-center justify-between gap-3 py-2">
+      <div class="flex items-center gap-3">
+        <a
+          href="/admin"
+          class="state-layer inline-flex min-h-11 items-center rounded-full px-3 text-title-md font-bold text-on-surface"
+        >
+          {site.brand} Admin
+        </a>
+        {user.email && <span class="hidden text-body-sm text-on-surface-variant sm:inline">{user.email}</span>}
+      </div>
+
+      <div class="flex items-center gap-2">
+        <a href="/socials" class="btn btn-text px-4">Socials page</a>
+        <a href="/" class="btn btn-outlined px-4">
+          <span>Public site</span>
+          <Icon name="open-in-new" />
+        </a>
+        <form method="POST" action={actions.admin.logout}>
+          <button type="submit" class="btn btn-tonal px-4">
+            <Icon name="logout" />
+            <span>Sign out</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <div class="container-page space-y-8 py-8 sm:py-10">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div class="space-y-1">
+        <h1 class="text-headline-md text-on-surface sm:text-headline-lg">Workspace</h1>
+        <p class="text-body-md text-on-surface-variant">
+          Create or update portfolio projects and manage your social media links.
+        </p>
+      </div>
+
+      <!-- M3 Tab Bar -->
+      <div
+        role="tablist"
+        aria-label="Admin sections"
+        data-admin-tabs
+        class="inline-flex w-full rounded-full bg-surface-container p-1 sm:w-auto"
+      >
+        <button
+          id="tab-projects"
+          type="button"
+          role="tab"
+          aria-selected={initialTab === 'projects' ? 'true' : 'false'}
+          aria-controls="panel-projects"
+          tabindex={initialTab === 'projects' ? 0 : -1}
+          data-tab="projects"
+          class="state-layer flex-1 rounded-full min-h-11 px-5 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none"
+        >
+          Projects ({projects.length})
+        </button>
+        <button
+          id="tab-socials"
+          type="button"
+          role="tab"
+          aria-selected={initialTab === 'socials' ? 'true' : 'false'}
+          aria-controls="panel-socials"
+          tabindex={initialTab === 'socials' ? 0 : -1}
+          data-tab="socials"
+          class="state-layer flex-1 rounded-full min-h-11 px-5 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none"
+        >
+          Socials ({socialLinks.length})
+        </button>
+      </div>
+    </div>
+
+    <!-- Projects Tab Panel -->
+    <section
+      id="panel-projects"
+      role="tabpanel"
+      aria-labelledby="tab-projects"
+      hidden={initialTab !== 'projects'}
+      class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start"
+    >
+      <!-- Project Editor -->
+      <div class="card-filled rounded-xl p-6 sm:p-7 space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-headline-sm text-on-surface">
+            {editingProject ? `Edit: ${editingProject.title}` : 'New project'}
+          </h2>
+          {
+            editingProject && (
+              <a href="/admin" class="btn btn-text">
+                Cancel edit
+              </a>
+            )
+          }
+        </div>
+
+        <form
+          method="POST"
+          action={actions.admin.saveProject}
+          enctype="multipart/form-data"
+          data-project-form
+          data-is-edit={editingProject ? 'true' : 'false'}
+          class="space-y-5"
+        >
+          {editingProject && <input type="hidden" name="id" value={editingProject.id} />}
+
+          <div
+            hidden={!saveTopError}
+            data-project-alert
+            role="alert"
+            class="flex items-start gap-3 rounded-lg bg-error-container p-4 text-body-md text-on-error-container"
+          >
+            <Icon name="error" class="mt-0.5 size-5" />
+            <p data-project-alert-text>{saveTopError ?? ''}</p>
+          </div>
+
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div class="field">
+              <input
+                id="proj-title"
+                name="title"
+                type="text"
+                required
+                maxlength={120}
+                placeholder=" "
+                value={editingProject?.title ?? ''}
+                aria-invalid={saveFieldErrors.title ? 'true' : undefined}
+                aria-describedby="proj-title-error"
+                class="field-input"
+              />
+              <label for="proj-title" class="field-label">Title</label>
+              <p id="proj-title-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="title">{saveFieldErrors.title?.[0] ?? 'Enter a title.'}</span>
+              </p>
+            </div>
+
+            <div class="field">
+              <input
+                id="proj-slug"
+                name="slug"
+                type="text"
+                maxlength={80}
+                placeholder=" "
+                value={editingProject?.slug ?? ''}
+                aria-invalid={saveFieldErrors.slug ? 'true' : undefined}
+                aria-describedby="proj-slug-support proj-slug-error"
+                class="field-input"
+              />
+              <label for="proj-slug" class="field-label">Slug (URL path)</label>
+              <p id="proj-slug-support" class="field-support">Lowercase letters, numbers, and hyphens.</p>
+              <p id="proj-slug-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="slug">{saveFieldErrors.slug?.[0] ?? 'Check the slug format.'}</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="grid gap-5 sm:grid-cols-[1.4fr_0.6fr]">
+            <div class="field">
+              <input
+                id="proj-category"
+                name="category"
+                type="text"
+                required
+                maxlength={40}
+                list="category-options"
+                placeholder=" "
+                value={editingProject?.category ?? 'Web App'}
+                aria-invalid={saveFieldErrors.category ? 'true' : undefined}
+                aria-describedby="proj-category-error"
+                class="field-input"
+              />
+              <label for="proj-category" class="field-label">Category</label>
+              <datalist id="category-options">
+                <option value="Website" />
+                <option value="Web App" />
+                <option value="Mobile App" />
+                <option value="API / Tool" />
+              </datalist>
+              <p id="proj-category-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="category">{saveFieldErrors.category?.[0] ?? 'Enter a category.'}</span>
+              </p>
+            </div>
+
+            <div class="field">
+              <input
+                id="proj-order"
+                name="sort_order"
+                type="number"
+                min={-9999}
+                max={9999}
+                placeholder=" "
+                value={editingProject?.sort_order ?? 0}
+                aria-invalid={saveFieldErrors.sort_order ? 'true' : undefined}
+                aria-describedby="proj-order-error"
+                class="field-input"
+              />
+              <label for="proj-order" class="field-label">Sort order</label>
+              <p id="proj-order-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="sort_order">{saveFieldErrors.sort_order?.[0] ?? 'Whole number.'}</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="field">
+            <textarea
+              id="proj-summary"
+              name="summary"
+              required
+              maxlength={300}
+              placeholder=" "
+              aria-invalid={saveFieldErrors.summary ? 'true' : undefined}
+              aria-describedby="proj-summary-support proj-summary-error"
+              class="field-input min-h-24!"
+            >{editingProject?.summary ?? ''}</textarea>
+            <label for="proj-summary" class="field-label">Summary</label>
+            <p id="proj-summary-support" class="field-support">Shown on cards, up to 300 characters.</p>
+            <p id="proj-summary-error" class="field-error">
+              <Icon name="error" />
+              <span data-error-for="summary">{saveFieldErrors.summary?.[0] ?? 'Write a short summary.'}</span>
+            </p>
+          </div>
+
+          <div class="field">
+            <textarea
+              id="proj-content"
+              name="content"
+              maxlength={20000}
+              placeholder=" "
+              aria-invalid={saveFieldErrors.content ? 'true' : undefined}
+              aria-describedby="proj-content-support proj-content-error"
+              class="field-input"
+            >{editingProject?.content ?? ''}</textarea>
+            <label for="proj-content" class="field-label">Case study details</label>
+            <p id="proj-content-support" class="field-support">Separate paragraphs with a blank line.</p>
+            <p id="proj-content-error" class="field-error">
+              <Icon name="error" />
+              <span data-error-for="content">{saveFieldErrors.content?.[0] ?? 'Keep under 20,000 characters.'}</span>
+            </p>
+          </div>
+
+          <div class="field">
+            <input
+              id="proj-stack"
+              name="tech_stack"
+              type="text"
+              maxlength={500}
+              placeholder=" "
+              value={editingProject?.tech_stack.join(', ') ?? ''}
+              aria-invalid={saveFieldErrors.tech_stack ? 'true' : undefined}
+              aria-describedby="proj-stack-support"
+              class="field-input"
+            />
+            <label for="proj-stack" class="field-label">Tech stack (comma-separated)</label>
+            <p id="proj-stack-support" class="field-support">Example: Astro, TypeScript, Tailwind CSS, Supabase</p>
+          </div>
+
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div class="field">
+              <input
+                id="proj-live"
+                name="live_url"
+                type="url"
+                maxlength={500}
+                placeholder=" "
+                value={editingProject?.live_url ?? ''}
+                aria-invalid={saveFieldErrors.live_url ? 'true' : undefined}
+                aria-describedby="proj-live-error"
+                class="field-input"
+              />
+              <label for="proj-live" class="field-label">Live URL (optional)</label>
+              <p id="proj-live-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="live_url">{saveFieldErrors.live_url?.[0] ?? 'Start with https://'}</span>
+              </p>
+            </div>
+
+            <div class="field">
+              <input
+                id="proj-repo"
+                name="repo_url"
+                type="url"
+                maxlength={500}
+                placeholder=" "
+                value={editingProject?.repo_url ?? ''}
+                aria-invalid={saveFieldErrors.repo_url ? 'true' : undefined}
+                aria-describedby="proj-repo-error"
+                class="field-input"
+              />
+              <label for="proj-repo" class="field-label">Repository URL (optional)</label>
+              <p id="proj-repo-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="repo_url">{saveFieldErrors.repo_url?.[0] ?? 'Start with https://'}</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
+              <input
+                type="checkbox"
+                name="featured"
+                class="checkbox"
+                checked={editingProject?.featured ?? false}
+              />
+              <span>Featured on home</span>
+            </label>
+
+            <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
+              <input
+                type="checkbox"
+                name="published"
+                class="checkbox"
+                checked={editingProject ? editingProject.published : true}
+              />
+              <span>Published</span>
+            </label>
+          </div>
+
+          <div class="space-y-3 rounded-lg border border-outline-variant p-4">
+            <label for="proj-thumbnail" class="block text-title-sm text-on-surface">
+              Thumbnail image (max 4 MB)
+            </label>
+            <input
+              id="proj-thumbnail"
+              name="thumbnail"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+              class="block w-full text-body-sm text-on-surface-variant file:mr-4 file:min-h-11 file:rounded-full file:border-0 file:bg-secondary-container file:px-4 file:text-label-lg file:text-on-secondary-container"
+            />
+            {
+              editingProject?.thumbnail_url && (
+                <div class="space-y-2 pt-2">
+                  <img
+                    src={editingProject.thumbnail_url}
+                    alt={`${editingProject.title} thumbnail`}
+                    width={320}
+                    height={200}
+                    class="aspect-[16/10] w-44 rounded-sm object-cover"
+                  />
+                  <label class="inline-flex min-h-11 items-center gap-2 text-body-sm text-error">
+                    <input type="checkbox" name="remove_thumbnail" class="checkbox" />
+                    <span>Remove current thumbnail</span>
+                  </label>
+                </div>
+              )
+            }
+          </div>
+
+          <div class="space-y-3 rounded-lg border border-outline-variant p-4">
+            <label for="proj-gallery" class="block text-title-sm text-on-surface">
+              Gallery screenshots (optional, 4.4 MB total per save)
+            </label>
+            <input
+              id="proj-gallery"
+              name="gallery"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+              class="block w-full text-body-sm text-on-surface-variant file:mr-4 file:min-h-11 file:rounded-full file:border-0 file:bg-secondary-container file:px-4 file:text-label-lg file:text-on-secondary-container"
+            />
+            {
+              editingProject && editingProject.gallery_urls.length > 0 && (
+                <div class="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-3">
+                  {editingProject.gallery_urls.map((url, idx) => (
+                    <div class="space-y-1.5 rounded-sm bg-surface-container-high p-2">
+                      <img
+                        src={url}
+                        alt={`Gallery ${idx + 1}`}
+                        width={240}
+                        height={150}
+                        class="aspect-[16/10] w-full rounded-xs object-cover"
+                      />
+                      <label class="flex min-h-11 items-center gap-2 text-body-sm text-error">
+                        <input type="checkbox" name="remove_gallery" value={url} class="checkbox" />
+                        <span>Remove</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 pt-1">
+            <button type="submit" class="btn btn-accent" data-project-submit>
+              <Icon name={editingProject ? 'edit' : 'add'} />
+              <span>{editingProject ? 'Save changes' : 'Create project'}</span>
+            </button>
+            {
+              editingProject && (
+                <a href="/admin" class="btn btn-outlined">
+                  New project instead
+                </a>
+              )
+            }
+          </div>
+        </form>
+      </div>
+
+      <!-- Existing Projects List -->
+      <div class="space-y-4">
+        <h2 class="text-headline-sm text-on-surface">All projects</h2>
+
+        {
+          projectsRes.error ? (
+            <div role="alert" class="rounded-card border border-error bg-surface-container-low p-6 space-y-2">
+              <p class="text-title-md text-error">Could not load projects</p>
+              <p class="text-body-md text-on-surface-variant">{projectsRes.error.message}</p>
+            </div>
+          ) : projects.length === 0 ? (
+            <div class="card-elevated p-6 space-y-2">
+              <p class="text-title-md text-on-surface">No projects saved yet</p>
+              <p class="text-body-md text-on-surface-variant">
+                Use the form to add your first project. Once published, it replaces the sample cards on the home page.
+              </p>
+            </div>
+          ) : (
+            <ul class="space-y-4">
+              {projects.map((project) => (
+                <li class="card-elevated space-y-4 p-5">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 space-y-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-label-md text-primary">{project.category}</span>
+                        <span
+                          class:list={[
+                            'rounded-xs px-2 py-0.5 text-label-sm',
+                            project.published
+                              ? 'bg-primary-container text-on-primary-container'
+                              : 'border border-outline-variant text-on-surface-variant',
+                          ]}
+                        >
+                          {project.published ? 'Published' : 'Draft'}
+                        </span>
+                        {project.featured && (
+                          <span class="rounded-xs bg-secondary-container px-2 py-0.5 text-label-sm text-on-secondary-container">
+                            Featured
+                          </span>
+                        )}
+                      </div>
+                      <h3 class="text-title-lg text-on-surface">{project.title}</h3>
+                      <p class="text-body-sm text-on-surface-variant">/projects/{project.slug}</p>
+                    </div>
+                  </div>
+
+                  <p class="text-body-md text-on-surface-variant">{project.summary}</p>
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <a href={`/admin?edit=${project.id}`} class="btn btn-tonal">
+                      <Icon name="edit" />
+                      <span>Edit</span>
+                    </a>
+                    {project.published && (
+                      <a href={`/projects/${project.slug}`} class="btn btn-outlined">
+                        <span>View page</span>
+                        <Icon name="open-in-new" />
+                      </a>
+                    )}
+                    <form
+                      method="POST"
+                      action={actions.admin.deleteProject}
+                      data-confirm-form
+                      data-confirm-title={`Delete "${project.title}"?`}
+                      data-confirm-body="This permanently removes the project and its uploaded images from storage."
+                    >
+                      <input type="hidden" name="id" value={project.id} />
+                      <button type="submit" class="btn btn-danger">
+                        <Icon name="delete" />
+                        <span>Delete</span>
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </div>
+    </section>
+
+    <!-- Social Media Tab Panel -->
+    <section
+      id="panel-socials"
+      role="tabpanel"
+      aria-labelledby="tab-socials"
+      hidden={initialTab !== 'socials'}
+      class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start"
+    >
+      <!-- Social Link Editor -->
+      <div class="card-filled rounded-xl p-6 sm:p-7 space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-headline-sm text-on-surface">
+            {editingSocial ? `Edit: ${editingSocial.platform}` : 'Add social link'}
+          </h2>
+          {
+            editingSocial && (
+              <a href="/admin?tab=socials" class="btn btn-text">
+                Cancel edit
+              </a>
+            )
+          }
+        </div>
+
+        <form
+          method="POST"
+          action={actions.admin.saveSocial}
+          data-social-form
+          class="space-y-5"
+        >
+          {editingSocial && <input type="hidden" name="id" value={editingSocial.id} />}
+
+          <div
+            hidden={!socialTopError}
+            data-social-alert
+            role="alert"
+            class="flex items-start gap-3 rounded-lg bg-error-container p-4 text-body-md text-on-error-container"
+          >
+            <Icon name="error" class="mt-0.5 size-5" />
+            <p data-social-alert-text>{socialTopError ?? ''}</p>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-label-md text-on-surface-variant">Quick pick platform</p>
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Platform presets" data-social-presets>
+              {
+                SOCIAL_BRAND_PRESETS.map((preset) => (
+                  <button
+                    type="button"
+                    class="chip-filter"
+                    data-preset-platform={preset.label}
+                    aria-pressed={editingSocial?.platform.toLowerCase() === preset.label.toLowerCase() ? 'true' : 'false'}
+                  >
+                    <SocialBrandIcon platform={preset.label} class="size-4.5" />
+                    <span>{preset.label}</span>
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div class="field">
+              <input
+                id="social-platform"
+                name="platform"
+                type="text"
+                required
+                maxlength={60}
+                list="platform-options"
+                placeholder=" "
+                value={editingSocial?.platform ?? ''}
+                aria-invalid={socialFieldErrors.platform ? 'true' : undefined}
+                aria-describedby="social-platform-error"
+                class="field-input"
+              />
+              <label for="social-platform" class="field-label">Platform</label>
+              <datalist id="platform-options">
+                <option value="GitHub" />
+                <option value="X / Twitter" />
+                <option value="Instagram" />
+                <option value="LinkedIn" />
+                <option value="YouTube" />
+                <option value="TikTok" />
+                <option value="Discord" />
+                <option value="Threads" />
+                <option value="Email" />
+              </datalist>
+              <p id="social-platform-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="platform">{socialFieldErrors.platform?.[0] ?? 'Enter a platform name.'}</span>
+              </p>
+            </div>
+
+            <div class="field">
+              <input
+                id="social-handle"
+                name="handle"
+                type="text"
+                maxlength={100}
+                placeholder=" "
+                value={editingSocial?.handle ?? ''}
+                aria-invalid={socialFieldErrors.handle ? 'true' : undefined}
+                aria-describedby="social-handle-error"
+                class="field-input"
+              />
+              <label for="social-handle" class="field-label">Handle / label (optional)</label>
+              <p id="social-handle-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="handle">{socialFieldErrors.handle?.[0] ?? 'Keep under 100 characters.'}</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="grid gap-5 sm:grid-cols-[1.45fr_0.55fr]">
+            <div class="field">
+              <input
+                id="social-url"
+                name="url"
+                type="text"
+                required
+                maxlength={500}
+                placeholder=" "
+                value={editingSocial?.url ?? ''}
+                aria-invalid={socialFieldErrors.url ? 'true' : undefined}
+                aria-describedby="social-url-support social-url-error"
+                class="field-input"
+              />
+              <label for="social-url" class="field-label">Profile URL</label>
+              <p id="social-url-support" class="field-support">Starts with https:// or mailto:</p>
+              <p id="social-url-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="url">
+                  {socialFieldErrors.url?.[0] ?? 'Enter a full URL starting with https:// or mailto:'}
+                </span>
+              </p>
+            </div>
+
+            <div class="field">
+              <input
+                id="social-order"
+                name="sort_order"
+                type="number"
+                min={-9999}
+                max={9999}
+                placeholder=" "
+                value={editingSocial?.sort_order ?? 0}
+                aria-invalid={socialFieldErrors.sort_order ? 'true' : undefined}
+                aria-describedby="social-order-error"
+                class="field-input"
+              />
+              <label for="social-order" class="field-label">Sort order</label>
+              <p id="social-order-error" class="field-error">
+                <Icon name="error" />
+                <span data-error-for="sort_order">{socialFieldErrors.sort_order?.[0] ?? 'Whole number.'}</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="field">
+            <input
+              id="social-description"
+              name="description"
+              type="text"
+              maxlength={200}
+              placeholder=" "
+              value={editingSocial?.description ?? ''}
+              aria-invalid={socialFieldErrors.description ? 'true' : undefined}
+              aria-describedby="social-description-support social-description-error"
+              class="field-input"
+            />
+            <label for="social-description" class="field-label">Short note (optional)</label>
+            <p id="social-description-support" class="field-support">Up to 200 characters, shown on the card.</p>
+            <p id="social-description-error" class="field-error">
+              <Icon name="error" />
+              <span data-error-for="description">{socialFieldErrors.description?.[0] ?? 'Keep under 200 characters.'}</span>
+            </p>
+          </div>
+
+          <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
+            <input
+              type="checkbox"
+              name="published"
+              class="checkbox"
+              checked={editingSocial ? editingSocial.published : true}
+            />
+            <span>Published (visible on /socials and home page)</span>
+          </label>
+
+          <div class="flex flex-wrap items-center gap-3 pt-1">
+            <button type="submit" class="btn btn-accent" data-social-submit>
+              <Icon name={editingSocial ? 'edit' : 'add'} />
+              <span>{editingSocial ? 'Save changes' : 'Add social link'}</span>
+            </button>
+            {
+              editingSocial && (
+                <a href="/admin?tab=socials" class="btn btn-outlined">
+                  Add another instead
+                </a>
+              )
+            }
+          </div>
+        </form>
+      </div>
+
+      <!-- Existing Social Links List -->
+      <div class="space-y-4">
+        <h2 class="text-headline-sm text-on-surface">Saved social links</h2>
+
+        {
+          socialsRes.error ? (
+            <div role="alert" class="rounded-card border border-error bg-surface-container-low p-6 space-y-2">
+              <p class="text-title-md text-error">Could not load social links</p>
+              <p class="text-body-md text-on-surface-variant">
+                {socialsRes.error.message}. Run the updated <code>supabase/schema.sql</code> in Supabase SQL Editor.
+              </p>
+            </div>
+          ) : socialLinks.length === 0 ? (
+            <div class="card-elevated p-6 space-y-2">
+              <p class="text-title-md text-on-surface">No social links saved yet</p>
+              <p class="text-body-md text-on-surface-variant">
+                Add your profiles on the left and they will appear on the Socials page and home page.
+              </p>
+            </div>
+          ) : (
+            <ul class="space-y-4">
+              {socialLinks.map((item) => (
+                <li class="card-elevated space-y-4 p-5">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="flex min-w-0 items-start gap-3.5">
+                      <span class="mt-0.5 inline-flex size-11 shrink-0 items-center justify-center rounded-md bg-secondary-container text-on-secondary-container">
+                        <SocialBrandIcon platform={item.platform} url={item.url} class="size-6" />
+                      </span>
+                      <div class="min-w-0 space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span
+                            class:list={[
+                              'rounded-xs px-2 py-0.5 text-label-sm',
+                              item.published
+                                ? 'bg-primary-container text-on-primary-container'
+                                : 'border border-outline-variant text-on-surface-variant',
+                            ]}
+                          >
+                            {item.published ? 'Published' : 'Draft'}
+                          </span>
+                          <span class="text-label-sm text-on-surface-variant">Order {item.sort_order}</span>
+                        </div>
+                        <h3 class="text-title-lg text-on-surface">
+                          {item.platform}
+                          {item.handle && <span class="ml-2 text-body-md text-primary">{item.handle}</span>}
+                        </h3>
+                        <p class="truncate text-body-sm text-on-surface-variant">{item.url}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {item.description && <p class="text-body-md text-on-surface-variant">{item.description}</p>}
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <a href={`/admin?tab=socials&editSocial=${item.id}`} class="btn btn-tonal">
+                      <Icon name="edit" />
+                      <span>Edit</span>
+                    </a>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" class="btn btn-outlined">
+                      <span>Open link</span>
+                      <Icon name="open-in-new" />
+                    </a>
+                    <form
+                      method="POST"
+                      action={actions.admin.deleteSocial}
+                      data-confirm-form
+                      data-confirm-title={`Delete "${item.platform}" link?`}
+                      data-confirm-body="This permanently removes this social media link from your portfolio."
+                    >
+                      <input type="hidden" name="id" value={item.id} />
+                      <button type="submit" class="btn btn-danger">
+                        <Icon name="delete" />
+                        <span>Delete</span>
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </div>
+    </section>
+  </div>
+
+  <!-- M3 Basic Dialog for destructive actions -->
+  <dialog id="confirm-delete-dialog" class="m3-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+    <div class="space-y-4">
+      <h2 id="confirm-title" class="text-headline-sm text-on-surface" data-dialog-title>
+        Confirm delete
+      </h2>
+      <p id="confirm-body" class="text-body-md text-on-surface-variant" data-dialog-body>
+        This action cannot be undone.
+      </p>
+      <div class="flex flex-wrap justify-end gap-2 pt-2">
+        <button type="button" class="btn btn-text" data-dialog-cancel>Cancel</button>
+        <button type="button" class="btn btn-danger" data-dialog-confirm>Delete permanently</button>
+      </div>
+    </div>
+  </dialog>
+</BaseLayout>
+
+<script>
+  import { actions, isInputError } from 'astro:actions';
+
+  /* ---------- Tabs ---------- */
+  const tabList = document.querySelector<HTMLElement>('[data-admin-tabs]');
+  const tabs = Array.from(tabList?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? []);
+  const panels = new Map<string, HTMLElement>();
+  for (const tab of tabs) {
+    const targetId = tab.getAttribute('aria-controls');
+    const panel = targetId ? document.getElementById(targetId) : null;
+    if (tab.dataset.tab && panel) panels.set(tab.dataset.tab, panel);
+  }
+
+  function activateTab(tabName: string, moveFocus = false) {
+    for (const tab of tabs) {
+      const selected = tab.dataset.tab === tabName;
+      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+      tab.tabIndex = selected ? 0 : -1;
+      if (selected && moveFocus) tab.focus();
+    }
+    for (const [name, panel] of panels) {
+      panel.hidden = name !== tabName;
+    }
+    const url = new URL(window.location.href);
+    if (tabName === 'socials') {
+      url.searchParams.set('tab', 'socials');
+    } else {
+      url.searchParams.delete('tab');
+    }
+    history.replaceState(null, '', url);
+  }
+
+  tabList?.addEventListener('click', (e) => {
+    const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[role="tab"]') : null;
+    if (btn?.dataset.tab) activateTab(btn.dataset.tab);
+  });
+
+  tabList?.addEventListener('keydown', (e) => {
+    const currentIndex = tabs.findIndex((t) => t === document.activeElement);
+    if (currentIndex === -1) return;
+    let nextIndex = -1;
+    if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') nextIndex = 0;
+    else if (e.key === 'End') nextIndex = tabs.length - 1;
+    if (nextIndex !== -1) {
+      e.preventDefault();
+      const targetTab = tabs[nextIndex]?.dataset.tab;
+      if (targetTab) activateTab(targetTab, true);
+    }
+  });
+
+  /* ---------- Project Form ---------- */
+  const projectForm = document.querySelector<HTMLFormElement>('[data-project-form]');
+  if (projectForm) {
+    const isEdit = projectForm.dataset.isEdit === 'true';
+    const titleInput = projectForm.elements.namedItem('title') as HTMLInputElement | null;
+    const slugInput = projectForm.elements.namedItem('slug') as HTMLInputElement | null;
+    let slugEdited = isEdit || Boolean(slugInput?.value);
+
+    function toSlug(val: string): string {
+      return val
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80)
+        .replace(/-+$/g, '');
+    }
+
+    slugInput?.addEventListener('input', () => {
+      slugEdited = Boolean(slugInput.value.trim());
+    });
+
+    titleInput?.addEventListener('input', () => {
+      if (!slugEdited && slugInput) {
+        slugInput.value = toSlug(titleInput.value);
+      }
+    });
+
+    projectForm.noValidate = true;
+    const submitBtn = projectForm.querySelector<HTMLButtonElement>('[data-project-submit]');
+    const alertBox = projectForm.querySelector<HTMLElement>('[data-project-alert]');
+    const alertText = projectForm.querySelector<HTMLElement>('[data-project-alert-text]');
+
+    function clearProjectErrors() {
+      if (alertBox) alertBox.hidden = true;
+      for (const el of projectForm!.querySelectorAll<HTMLElement>('.field-input')) {
+        el.removeAttribute('aria-invalid');
+      }
+    }
+
+    function setProjectFieldError(name: string, message: string) {
+      const input = projectForm!.elements.namedItem(name) as HTMLElement | null;
+      const errSpan = projectForm!.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
+      if (input) input.setAttribute('aria-invalid', 'true');
+      if (errSpan) errSpan.textContent = message;
+    }
+
+    projectForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearProjectErrors();
+
+      const thumbInput = projectForm.elements.namedItem('thumbnail') as HTMLInputElement | null;
+      const galleryInput = projectForm.elements.namedItem('gallery') as HTMLInputElement | null;
+      let totalBytes = 0;
+      for (const file of [...(thumbInput?.files ?? []), ...(galleryInput?.files ?? [])]) {
+        if (file.size > 4 * 1024 * 1024) {
+          const msg = `"${file.name}" is larger than 4 MB.`;
+          if (alertBox && alertText) {
+            alertText.textContent = msg;
+            alertBox.hidden = false;
+          }
+          return;
+        }
+        totalBytes += file.size;
+      }
+      if (totalBytes > 4.4 * 1024 * 1024) {
+        if (alertBox && alertText) {
+          alertText.textContent = 'Total uploaded image size per save must be under 4.4 MB.';
+          alertBox.hidden = false;
+        }
+        return;
+      }
+
+      const originalLabel = submitBtn?.querySelector('span')?.textContent ?? 'Save';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        const label = submitBtn.querySelector('span');
+        if (label) label.textContent = 'Saving...';
+      }
+
+      try {
+        const { data, error } = await actions.admin.saveProject(new FormData(projectForm));
+        if (error) {
+          if (isInputError(error)) {
+            let focused = false;
+            for (const [key, messages] of Object.entries(error.fields)) {
+              const msg = messages?.[0];
+              if (msg) {
+                setProjectFieldError(key, msg);
+                if (!focused) {
+                  const fieldEl = projectForm.elements.namedItem(key);
+                  if (fieldEl instanceof HTMLElement) {
+                    fieldEl.focus();
+                    focused = true;
+                  }
+                }
+              }
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: 'Check the highlighted fields.' } }));
+          } else {
+            if (alertBox && alertText) {
+              alertText.textContent = error.message;
+              alertBox.hidden = false;
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: error.message } }));
+          }
+          return;
+        }
+
+        if (data?.slug) {
+          window.location.assign(`/admin?saved=${encodeURIComponent(data.slug)}`);
+        }
+      } catch {
+        const msg = 'Network error while saving project.';
+        if (alertBox && alertText) {
+          alertText.textContent = msg;
+          alertBox.hidden = false;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          const label = submitBtn.querySelector('span');
+          if (label) label.textContent = originalLabel;
+        }
+      }
+    });
+  }
+
+  /* ---------- Social Link Form ---------- */
+  const socialForm = document.querySelector<HTMLFormElement>('[data-social-form]');
+  if (socialForm) {
+    socialForm.noValidate = true;
+    const presetGroup = socialForm.querySelector<HTMLElement>('[data-social-presets]');
+    const platformInput = socialForm.elements.namedItem('platform') as HTMLInputElement | null;
+    const urlInput = socialForm.elements.namedItem('url') as HTMLInputElement | null;
+    const submitBtn = socialForm.querySelector<HTMLButtonElement>('[data-social-submit]');
+    const alertBox = socialForm.querySelector<HTMLElement>('[data-social-alert]');
+    const alertText = socialForm.querySelector<HTMLElement>('[data-social-alert-text]');
+
+    function syncPresetButtons() {
+      const current = (platformInput?.value ?? '').trim().toLowerCase();
+      for (const btn of presetGroup?.querySelectorAll<HTMLButtonElement>('[data-preset-platform]') ?? []) {
+        const match = (btn.dataset.presetPlatform ?? '').toLowerCase() === current;
+        btn.setAttribute('aria-pressed', match ? 'true' : 'false');
+      }
+    }
+
+    presetGroup?.addEventListener('click', (e) => {
+      const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[data-preset-platform]') : null;
+      const value = btn?.dataset.presetPlatform;
+      if (value && platformInput) {
+        platformInput.value = value;
+        platformInput.removeAttribute('aria-invalid');
+        syncPresetButtons();
+        const handleInput = socialForm.elements.namedItem('handle');
+        if (value === 'Email' && urlInput && !urlInput.value.trim()) {
+          urlInput.focus();
+        } else if (handleInput instanceof HTMLElement) {
+          handleInput.focus();
+        }
+      }
+    });
+
+    platformInput?.addEventListener('input', syncPresetButtons);
+
+    function clearSocialErrors() {
+      if (alertBox) alertBox.hidden = true;
+      for (const el of socialForm!.querySelectorAll<HTMLElement>('.field-input')) {
+        el.removeAttribute('aria-invalid');
+      }
+    }
+
+    function setSocialFieldError(name: string, message: string) {
+      const input = socialForm!.elements.namedItem(name) as HTMLElement | null;
+      const errSpan = socialForm!.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
+      if (input) input.setAttribute('aria-invalid', 'true');
+      if (errSpan) errSpan.textContent = message;
+    }
+
+    socialForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearSocialErrors();
+
+      const originalLabel = submitBtn?.querySelector('span')?.textContent ?? 'Save';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        const label = submitBtn.querySelector('span');
+        if (label) label.textContent = 'Saving...';
+      }
+
+      try {
+        const { data, error } = await actions.admin.saveSocial(new FormData(socialForm));
+        if (error) {
+          if (isInputError(error)) {
+            let focused = false;
+            for (const [key, messages] of Object.entries(error.fields)) {
+              const msg = messages?.[0];
+              if (msg) {
+                setSocialFieldError(key, msg);
+                if (!focused) {
+                  const fieldEl = socialForm.elements.namedItem(key);
+                  if (fieldEl instanceof HTMLElement) {
+                    fieldEl.focus();
+                    focused = true;
+                  }
+                }
+              }
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: 'Check the highlighted fields.' } }));
+          } else {
+            if (alertBox && alertText) {
+              alertText.textContent = error.message;
+              alertBox.hidden = false;
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: error.message } }));
+          }
+          return;
+        }
+
+        if (data?.platform) {
+          window.location.assign(`/admin?tab=socials&savedSocial=${encodeURIComponent(data.platform)}`);
+        }
+      } catch {
+        const msg = 'Network error while saving social link.';
+        if (alertBox && alertText) {
+          alertText.textContent = msg;
+          alertBox.hidden = false;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          const label = submitBtn.querySelector('span');
+          if (label) label.textContent = originalLabel;
+        }
+      }
+    });
+  }
+
+  /* ---------- Delete confirmation dialog ---------- */
+  const dialog = document.getElementById('confirm-delete-dialog') as HTMLDialogElement | null;
+  const dialogTitle = dialog?.querySelector<HTMLElement>('[data-dialog-title]');
+  const dialogBody = dialog?.querySelector<HTMLElement>('[data-dialog-body]');
+  const dialogCancel = dialog?.querySelector<HTMLButtonElement>('[data-dialog-cancel]');
+  const dialogConfirm = dialog?.querySelector<HTMLButtonElement>('[data-dialog-confirm]');
+  let pendingForm: HTMLFormElement | null = null;
+
+  for (const form of document.querySelectorAll<HTMLFormElement>('[data-confirm-form]')) {
+    form.addEventListener('submit', (e) => {
+      if (form.dataset.confirmed === 'true' || !dialog) return;
+      e.preventDefault();
+      pendingForm = form;
+      if (dialogTitle) dialogTitle.textContent = form.dataset.confirmTitle ?? 'Confirm delete';
+      if (dialogBody) dialogBody.textContent = form.dataset.confirmBody ?? 'This action cannot be undone.';
+      dialog.showModal();
+    });
+  }
+
+  dialogCancel?.addEventListener('click', () => {
+    pendingForm = null;
+    dialog?.close();
+  });
+
+  dialogConfirm?.addEventListener('click', () => {
+    const form = pendingForm;
+    pendingForm = null;
+    dialog?.close();
+    if (form) {
+      form.dataset.confirmed = 'true';
+      form.requestSubmit();
+    }
+  });
+
+  dialog?.addEventListener('click', (e) => {
+    if (e.target === dialog) {
+      pendingForm = null;
+      dialog.close();
+    }
+  });
+</script>
