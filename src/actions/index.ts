@@ -1,6 +1,7 @@
 import { ActionError, defineAction, type ActionAPIContext } from 'astro:actions';
 import { z } from 'astro/zod';
 import { slugify } from '../lib/projects';
+import { isSafeHref, parseCommaItems, type SkillGroup } from '../lib/site-content';
 import { PROJECT_IMAGES_BUCKET, resolveAdmin, type TypedSupabaseClient } from '../lib/supabase';
 
 /* ------------------------------------------------------------------ */
@@ -189,12 +190,7 @@ export const server = {
           thumbnailUrl = null;
         }
 
-        const techStack = (input.tech_stack ?? '')
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-          .filter((t, i, all) => all.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i)
-          .slice(0, 20);
+        const techStack = parseCommaItems(input.tech_stack ?? '', 20);
 
         const record = {
           slug,
@@ -305,6 +301,150 @@ export const server = {
         const supabase = await requireAdmin(context);
         const { error } = await supabase.from('social_links').delete().eq('id', id);
         if (error) throw new ActionError({ code: 'INTERNAL_SERVER_ERROR', message: `Deleting failed: ${error.message}` });
+        return { ok: true as const };
+      },
+    }),
+
+    saveSiteContent: defineAction({
+      accept: 'form',
+      input: z.object({
+        brand: z.string({ error: 'Enter a brand name.' }).trim().min(1, 'Enter a brand name.').max(40, 'Keep brand under 40 characters.'),
+        owner: z.string({ error: 'Enter the owner name.' }).trim().min(1, 'Enter the owner name.').max(60, 'Keep name under 60 characters.'),
+        role: z.string({ error: 'Enter your role.' }).trim().min(1, 'Enter your role.').max(80, 'Keep role under 80 characters.'),
+        meta_description: z
+          .string({ error: 'Enter a site description.' })
+          .trim()
+          .min(1, 'Enter a site description.')
+          .max(300, 'Keep description under 300 characters.'),
+        hero_eyebrow: z.string().trim().max(100, 'Keep eyebrow under 100 characters.').optional(),
+        hero_heading: z
+          .string({ error: 'Enter a hero headline.' })
+          .trim()
+          .min(1, 'Enter a hero headline.')
+          .max(160, 'Keep headline under 160 characters.'),
+        hero_bio: z
+          .string({ error: 'Enter your hero bio.' })
+          .trim()
+          .min(1, 'Enter your hero bio.')
+          .max(1000, 'Keep bio under 1,000 characters.'),
+        hero_primary_cta_label: z
+          .string({ error: 'Enter primary button label.' })
+          .trim()
+          .min(1, 'Enter primary button label.')
+          .max(60, 'Keep button label under 60 characters.'),
+        hero_primary_cta_href: z
+          .string({ error: 'Enter primary button link.' })
+          .trim()
+          .min(1, 'Enter primary button link.')
+          .max(200, 'Keep link under 200 characters.')
+          .refine(isSafeHref, 'Use a page path (/...), section (#...), or https:// URL.'),
+        hero_secondary_cta_label: z
+          .string({ error: 'Enter secondary button label.' })
+          .trim()
+          .min(1, 'Enter secondary button label.')
+          .max(60, 'Keep button label under 60 characters.'),
+        hero_secondary_cta_href: z
+          .string({ error: 'Enter secondary button link.' })
+          .trim()
+          .min(1, 'Enter secondary button link.')
+          .max(200, 'Keep link under 200 characters.')
+          .refine(isSafeHref, 'Use a page path (/...), section (#...), or https:// URL.'),
+        card_focus: z.string().trim().max(80, 'Keep Focus under 80 characters.').optional(),
+        card_workflow: z.string().trim().max(80, 'Keep Workflow under 80 characters.').optional(),
+        card_stack: z.string().trim().max(120, 'Keep Stack under 120 characters.').optional(),
+        projects_heading: z
+          .string({ error: 'Enter a Projects heading.' })
+          .trim()
+          .min(1, 'Enter a Projects heading.')
+          .max(100, 'Keep heading under 100 characters.'),
+        projects_subtitle: z.string().trim().max(300, 'Keep subtitle under 300 characters.').optional(),
+        about_heading: z
+          .string({ error: 'Enter an About heading.' })
+          .trim()
+          .min(1, 'Enter an About heading.')
+          .max(100, 'Keep heading under 100 characters.'),
+        about_paragraphs: z.string().trim().max(2000, 'Keep About text under 2,000 characters.').optional(),
+        socials_heading: z
+          .string({ error: 'Enter a Socials heading.' })
+          .trim()
+          .min(1, 'Enter a Socials heading.')
+          .max(100, 'Keep heading under 100 characters.'),
+        socials_subtitle: z.string().trim().max(300, 'Keep subtitle under 300 characters.').optional(),
+        socials_cta_label: z
+          .string({ error: 'Enter Socials button label.' })
+          .trim()
+          .min(1, 'Enter Socials button label.')
+          .max(60, 'Keep button label under 60 characters.'),
+        skill_title: z.array(z.string().trim().max(60)).optional(),
+        skill_note: z.array(z.string().trim().max(120)).optional(),
+        skill_items: z.array(z.string().max(600)).optional(),
+      }),
+      handler: async (input, context) => {
+        const supabase = await requireAdmin(context);
+
+        const titles = input.skill_title ?? [];
+        const notes = input.skill_note ?? [];
+        const itemLists = input.skill_items ?? [];
+        const skills: SkillGroup[] = [];
+
+        for (let idx = 0; idx < titles.length && skills.length < 12; idx += 1) {
+          const title = titles[idx]?.trim() ?? '';
+          if (!title) continue;
+          skills.push({
+            title,
+            note: notes[idx]?.trim() ?? '',
+            items: parseCommaItems(itemLists[idx] ?? '', 30),
+          });
+        }
+
+        if (skills.length === 0) {
+          throw new ActionError({
+            code: 'BAD_REQUEST',
+            message: 'Add at least one skill category with a title.',
+          });
+        }
+
+        const record = {
+          id: 'main',
+          brand: input.brand,
+          owner: input.owner,
+          role: input.role,
+          meta_description: input.meta_description,
+          hero_eyebrow: input.hero_eyebrow ?? '',
+          hero_heading: input.hero_heading,
+          hero_bio: input.hero_bio.replace(/\r\n?/g, '\n'),
+          hero_primary_cta_label: input.hero_primary_cta_label,
+          hero_primary_cta_href: input.hero_primary_cta_href,
+          hero_secondary_cta_label: input.hero_secondary_cta_label,
+          hero_secondary_cta_href: input.hero_secondary_cta_href,
+          card_focus: input.card_focus ?? '',
+          card_workflow: input.card_workflow ?? '',
+          card_stack: input.card_stack ?? '',
+          projects_heading: input.projects_heading,
+          projects_subtitle: input.projects_subtitle ?? '',
+          about_heading: input.about_heading,
+          about_paragraphs: (input.about_paragraphs ?? '').replace(/\r\n?/g, '\n'),
+          skills: skills as unknown as import('../lib/database.types').Json,
+          socials_heading: input.socials_heading,
+          socials_subtitle: input.socials_subtitle ?? '',
+          socials_cta_label: input.socials_cta_label,
+        };
+
+        const { error } = await supabase
+          .from('site_content')
+          .upsert(record, { onConflict: 'id' });
+
+        if (error) {
+          if (error.code === '42P01' || error.code === 'PGRST205' || /does not exist|could not find the table/i.test(error.message)) {
+            throw new ActionError({
+              code: 'FAILED_DEPENDENCY',
+              message: 'The public.site_content table is missing in Supabase. Run the updated supabase/schema.sql in Supabase SQL Editor first.',
+            });
+          }
+          throw new ActionError({ code: 'INTERNAL_SERVER_ERROR', message: `Saving failed: ${error.message}` });
+        }
+
+        context.locals.siteContent = undefined;
         return { ok: true as const };
       },
     }),

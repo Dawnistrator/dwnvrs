@@ -1,0 +1,25 @@
+---
+interface Props {
+  class?: string;
+  variant?: 'duotone' | 'mono';
+  title?: string;
+}
+
+const { class: className = 'size-6', variant = 'duotone', title } = Astro.props;
+const coreFill = variant === 'duotone' ? 'var(--md-sys-color-accent, #8c52ff)' : 'currentColor';
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 256 256"
+  fill="none"
+  class={className}
+  role={title ? 'img' : undefined}
+  aria-label={title || undefined}
+  aria-hidden={title ? undefined : 'true'}
+>
+  {title && <title>{title}</title>}
+  <path fill="currentColor" d="M 32 200 L 32 76 A 44 44 0 0 1 76 32 L 200 32 L 152.3 79.7 A 54 54 0 0 0 79.7 152.3 Z" />
+  <path fill="currentColor" d="M 224 56 L 224 180 A 44 44 0 0 1 180 224 L 56 224 L 103.7 176.3 A 54 54 0 0 0 176.3 103.7 Z" />
+  <circle cx="128" cy="128" r="22" fill={coreFill} />
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="t">
+  <title id="t">DWNVRS Dawnverse Portal Symbol (Violet Mono)</title>
+  <path fill="#8C52FF" d="M 32 200 L 32 76 A 44 44 0 0 1 76 32 L 200 32 L 152.3 79.7 A 54 54 0 0 0 79.7 152.3 Z"/>
+  <path fill="#8C52FF" d="M 224 56 L 224 180 A 44 44 0 0 1 180 224 L 56 224 L 103.7 176.3 A 54 54 0 0 0 176.3 103.7 Z"/>
+  <circle cx="128" cy="128" r="22" fill="#8C52FF"/>
+</svg>

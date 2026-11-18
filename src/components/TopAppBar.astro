@@ -1,17 +1,20 @@
 ---
 import { site } from '../config/site';
+import BrandMark from './BrandMark.astro';
 
 interface Props {
   active?: 'home' | 'projects' | 'about' | 'socials';
+  brand?: string;
+  showAdmin?: boolean;
 }
 
-const { active = 'home' } = Astro.props;
+const { active = 'home', brand = site.brand, showAdmin = false } = Astro.props;
 
 const navItems = [
   { id: 'home', label: 'Home', href: '/#top' },
   { id: 'projects', label: 'Projects', href: '/#projects' },
   { id: 'about', label: 'About', href: '/#about' },
-  { id: 'socials', label: 'Socials', href: '/socials' },
+  { id: 'socials', label: 'Socials', href: '/#socials' },
 ] as const;
 ---
 
@@ -19,9 +22,10 @@ const navItems = [
   <div class="container-page flex h-16 items-center justify-between gap-4">
     <a
       href="/"
-      class="state-layer inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-title-md tracking-tight text-on-surface"
+      class="state-layer inline-flex min-h-11 items-center gap-2.5 rounded-full px-3 text-title-md tracking-tight text-on-surface"
     >
-      <span class="font-bold tracking-wide text-on-surface">{site.brand}</span>
+      <BrandMark class="size-6 shrink-0 text-on-surface" />
+      <span class="font-bold tracking-wide text-on-surface">{brand}</span>
     </a>
 
     <nav aria-label="Primary" class="hidden items-center gap-1 md:flex" data-desktop-nav>
@@ -39,8 +43,12 @@ const navItems = [
       }
     </nav>
 
-    <div class="flex items-center gap-2">
-      <a href="/admin" class="btn btn-outlined min-h-11 px-4">Admin</a>
-    </div>
+    {
+      showAdmin && (
+        <div class="flex items-center gap-2">
+          <a href="/admin" class="btn btn-outlined min-h-11 px-4">Admin</a>
+        </div>
+      )
+    }
   </div>
 </header>

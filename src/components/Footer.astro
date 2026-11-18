@@ -1,13 +1,26 @@
 ---
 import { site } from '../config/site';
+import BrandMark from './BrandMark.astro';
+
+interface Props {
+  brand?: string;
+  owner?: string;
+  role?: string;
+  showAdmin?: boolean;
+}
+
+const { brand = site.brand, owner = site.owner, role = site.role, showAdmin = false } = Astro.props;
 ---
 
 <footer class="border-t border-outline-variant/50 bg-surface-container-lowest">
   <div class="container-page flex flex-col gap-6 py-10 sm:flex-row sm:items-center sm:justify-between">
-    <div class="space-y-1">
-      <p class="text-title-md text-on-surface">{site.brand}</p>
+    <div class="space-y-1.5">
+      <div class="flex items-center gap-2 text-title-md text-on-surface">
+        <BrandMark class="size-5 shrink-0 text-on-surface" />
+        <p class="font-bold tracking-wide">{brand}</p>
+      </div>
       <p class="text-body-md text-on-surface-variant">
-        {site.owner} · {site.role}
+        {owner} · {role}
       </p>
     </div>
 
@@ -15,7 +28,7 @@ import { site } from '../config/site';
       <a href="/#projects" class="btn btn-text">Projects</a>
       <a href="/#about" class="btn btn-text">About</a>
       <a href="/socials" class="btn btn-text">Socials</a>
-      <a href="/admin" class="btn btn-text">Admin</a>
+      {showAdmin && <a href="/admin" class="btn btn-text">Admin</a>}
     </div>
   </div>
 </footer>

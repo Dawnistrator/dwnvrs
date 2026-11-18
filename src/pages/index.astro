@@ -1,75 +1,93 @@
 ---
+import HeroTonalField from '../components/HeroTonalField.astro';
 import LanyardCard from '../components/LanyardCard.astro';
 import ProjectsSection from '../components/ProjectsSection.astro';
 import SocialLinksList from '../components/SocialLinksList.astro';
-import { site } from '../config/site';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getPublishedProjects } from '../lib/projects';
+import { parseAboutParagraphs, resolveSiteContent } from '../lib/site-content';
 import { getPublishedSocials } from '../lib/socials';
 
-const [projectsResult, socialsResult] = await Promise.all([
+const [{ content }, projectsResult, socialsResult] = await Promise.all([
+  resolveSiteContent(Astro.locals),
   getPublishedProjects(Astro.locals.supabase),
   getPublishedSocials(Astro.locals.supabase),
 ]);
+
+const aboutParagraphs = parseAboutParagraphs(content.aboutParagraphs);
 ---
 
-<BaseLayout title={`${site.brand} | ${site.owner} (${site.role})`}>
+<BaseLayout
+  title={`${content.brand} | ${content.owner} (${content.role})`}
+  description={content.metaDescription}
+  includeStructuredData={true}
+>
   <!-- Hero -->
-  <section id="top" aria-labelledby="hero-heading" class="overflow-x-clip pt-10 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-24">
+  <section id="top" aria-labelledby="hero-heading" class="relative isolate z-20 overflow-x-clip pt-10 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-24">
+    <HeroTonalField />
     <div class="container-page grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-start lg:gap-12">
       <div class="space-y-6">
-        <p class="text-label-lg text-primary">
-          {site.brand} · {site.role}
-        </p>
+        {content.heroEyebrow && <p class="text-label-lg text-primary">{content.heroEyebrow}</p>}
 
         <h1
           id="hero-heading"
-          class="text-display-sm tracking-tight text-on-surface sm:text-display-md lg:text-display-lg"
+          class="text-display-sm tracking-tight text-on-surface sm:text-display-md lg:text-display-lg text-balance"
         >
-          Full-stack apps and websites, built with AI.
+          {content.heroHeading}
         </h1>
 
-        <p class="max-w-xl text-body-lg text-on-surface-variant">
-          {site.bio}
+        <p class="max-w-xl whitespace-pre-line text-body-lg leading-relaxed text-on-surface-variant text-pretty">
+          {content.heroBio}
         </p>
 
         <div class="flex flex-wrap items-center gap-3 pt-1">
-          <a href="/socials" class="btn btn-accent">Social media</a>
-          <a href="#projects" class="btn btn-outlined">View projects</a>
+          <a href={content.heroPrimaryCtaHref} class="btn btn-accent">{content.heroPrimaryCtaLabel}</a>
+          <a href={content.heroSecondaryCtaHref} class="btn btn-outlined">{content.heroSecondaryCtaLabel}</a>
         </div>
       </div>
 
-      <LanyardCard />
+      <LanyardCard
+        brand={content.brand}
+        owner={content.owner}
+        role={content.role}
+        focus={content.cardFocus}
+        workflow={content.cardWorkflow}
+        stack={content.cardStack}
+      />
     </div>
   </section>
 
   <!-- Projects -->
-  <ProjectsSection result={projectsResult} />
+  <ProjectsSection
+    result={projectsResult}
+    heading={content.projectsHeading}
+    subtitle={content.projectsSubtitle}
+    showAdmin={Astro.locals.isAdmin}
+  />
 
   <!-- About & Skills -->
   <section id="about" aria-labelledby="about-heading" class="py-12 sm:py-16 lg:py-20">
     <div class="container-page grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start lg:gap-12">
       <div class="space-y-4">
-        <h2 id="about-heading" class="text-headline-sm text-on-surface sm:text-headline-md">
-          About &amp; skills
+        <h2 id="about-heading" class="text-headline-sm text-on-surface sm:text-headline-md text-balance">
+          {content.aboutHeading}
         </h2>
-        <p class="text-body-lg text-on-surface-variant">
-          I build full-stack web apps and custom websites under {site.brand}, combining AI coding workflows with
-          server-rendered TypeScript and Postgres.
-        </p>
-        <p class="text-body-md text-on-surface-variant">
-          The focus is keeping pages fast in the browser, moving sensitive work to the server, and backing projects
-          with clear data models and access rules.
-        </p>
+        {
+          aboutParagraphs.map((paragraph, index) => (
+            <p class:list={[index === 0 ? 'text-body-lg' : 'text-body-md', 'text-on-surface-variant text-pretty']}>
+              {paragraph}
+            </p>
+          ))
+        }
       </div>
 
       <div class="divide-y divide-outline-variant/50 rounded-xl bg-surface-container-low">
         {
-          site.skills.map((group) => (
+          content.skills.map((group) => (
             <div class="grid gap-4 p-5 sm:grid-cols-[0.8fr_1.2fr] sm:items-start sm:p-6">
               <div class="space-y-1">
                 <h3 class="text-title-md text-on-surface">{group.title}</h3>
-                <p class="text-body-sm text-on-surface-variant">{group.note}</p>
+                {group.note && <p class="text-body-sm text-on-surface-variant">{group.note}</p>}
               </div>
               <ul class="flex flex-wrap gap-2" aria-label={`${group.title} skills`}>
                 {group.items.map((item) => (
@@ -88,19 +106,17 @@ const [projectsResult, socialsResult] = await Promise.all([
     <div class="container-page space-y-8">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="max-w-2xl space-y-2">
-          <h2 id="socials-heading" class="text-headline-sm text-on-surface sm:text-headline-md">
-            Social media
+          <h2 id="socials-heading" class="text-headline-sm text-on-surface sm:text-headline-md text-balance">
+            {content.socialsHeading}
           </h2>
-          <p class="text-body-lg text-on-surface-variant">
-            Where to find my profiles, repositories, and updates across platforms.
-          </p>
+          {content.socialsSubtitle && <p class="text-body-lg text-on-surface-variant">{content.socialsSubtitle}</p>}
         </div>
         <a href="/socials" class="btn btn-outlined self-start sm:self-end">
-          All social links
+          {content.socialsCtaLabel}
         </a>
       </div>
 
-      <SocialLinksList result={socialsResult} compact={true} headingLevel="h3" />
+      <SocialLinksList result={socialsResult} compact={true} headingLevel="h3" showAdmin={Astro.locals.isAdmin} />
     </div>
   </section>
 </BaseLayout>

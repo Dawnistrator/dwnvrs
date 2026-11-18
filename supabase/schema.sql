@@ -165,6 +165,66 @@ create policy "social_links: admin delete"
   using (public.is_admin());
 
 -- ---------------------------------------------------------------------
+-- Site & home page sections (singleton row 'main')
+-- Publicly readable; editable by admins only.
+-- ---------------------------------------------------------------------
+create table if not exists public.site_content (
+  id text primary key default 'main' check (id = 'main'),
+  brand text not null default 'DWNVRS' check (char_length(brand) between 1 and 40),
+  owner text not null default 'Dawn' check (char_length(owner) between 1 and 60),
+  role text not null default 'Full-Stack Web Developer' check (char_length(role) between 1 and 80),
+  meta_description text not null default 'Dawn (DWNVRS) builds modern apps and websites using Artificial Intelligence, blending product vision and design aesthetics.' check (char_length(meta_description) between 1 and 300),
+  hero_eyebrow text not null default 'DWNVRS · Full-Stack Web Developer' check (char_length(hero_eyebrow) <= 100),
+  hero_heading text not null default 'Full-stack apps and websites, built with AI.' check (char_length(hero_heading) between 1 and 160),
+  hero_bio text not null default E'Hi, I''m Dawn,\nI build Apps & Websites using Artificial Intelligence.\nI''m a vibecoder who blends product vision, design aesthetics, and AI to build functional, modern digital products.' check (char_length(hero_bio) between 1 and 1000),
+  hero_primary_cta_label text not null default 'Social media' check (char_length(hero_primary_cta_label) between 1 and 60),
+  hero_primary_cta_href text not null default '/socials' check (char_length(hero_primary_cta_href) between 1 and 200 and hero_primary_cta_href ~ '^(/([^/]|$)|#|https?://|mailto:)'),
+  hero_secondary_cta_label text not null default 'View projects' check (char_length(hero_secondary_cta_label) between 1 and 60),
+  hero_secondary_cta_href text not null default '#projects' check (char_length(hero_secondary_cta_href) between 1 and 200 and hero_secondary_cta_href ~ '^(/([^/]|$)|#|https?://|mailto:)'),
+  card_focus text not null default 'Apps & websites' check (char_length(card_focus) <= 80),
+  card_workflow text not null default 'AI-assisted' check (char_length(card_workflow) <= 80),
+  card_stack text not null default 'Astro, TS, Tailwind, Supabase' check (char_length(card_stack) <= 120),
+  projects_heading text not null default 'Projects' check (char_length(projects_heading) between 1 and 100),
+  projects_subtitle text not null default 'Selected apps and websites, with architecture notes and source links where public.' check (char_length(projects_subtitle) <= 300),
+  about_heading text not null default 'About & skills' check (char_length(about_heading) between 1 and 100),
+  about_paragraphs text not null default E'I build full-stack web apps and custom websites under DWNVRS, combining AI coding workflows with server-rendered TypeScript and Postgres.\n\nThe focus is keeping pages fast in the browser, moving sensitive work to the server, and backing projects with clear data models and access rules.' check (char_length(about_paragraphs) <= 2000),
+  skills jsonb not null default '[{"title":"Interface","note":"What visitors touch","items":["Astro","Next.js 15","ReactJS","TypeScript","Tailwind CSS","Material Design 3","Responsive layout"]},{"title":"Backend and data","note":"What keeps it running","items":["Supabase","PostgreSQL","Row Level Security","Astro Actions","REST APIs"]},{"title":"Workflow","note":"How it gets built","items":["AI-assisted coding","Gemini","Antigravity","ORCA ADE","Git","Vercel"]}]'::jsonb
+    check (jsonb_typeof(skills) = 'array'),
+  socials_heading text not null default 'Social media' check (char_length(socials_heading) between 1 and 100),
+  socials_subtitle text not null default 'Where to find my profiles, repositories, and updates across platforms.' check (char_length(socials_subtitle) <= 300),
+  socials_cta_label text not null default 'All social links' check (char_length(socials_cta_label) between 1 and 60),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists site_content_set_updated_at on public.site_content;
+create trigger site_content_set_updated_at
+  before update on public.site_content
+  for each row execute function public.set_updated_at();
+
+alter table public.site_content enable row level security;
+
+drop policy if exists "site_content: public read" on public.site_content;
+create policy "site_content: public read"
+  on public.site_content for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "site_content: admin insert" on public.site_content;
+create policy "site_content: admin insert"
+  on public.site_content for insert
+  to authenticated
+  with check (public.is_admin());
+
+drop policy if exists "site_content: admin update" on public.site_content;
+create policy "site_content: admin update"
+  on public.site_content for update
+  to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+insert into public.site_content (id) values ('main') on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
 -- Storage: project images (public read, admin write)
 -- ---------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

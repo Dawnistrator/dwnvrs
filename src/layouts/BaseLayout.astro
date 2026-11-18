@@ -1,5 +1,5 @@
 ---
-import { site } from '../config/site';
+import { resolveSiteContent } from '../lib/site-content';
 import '../styles/global.css';
 import BottomNav from '../components/BottomNav.astro';
 import Footer from '../components/Footer.astro';
@@ -9,20 +9,60 @@ import TopAppBar from '../components/TopAppBar.astro';
 interface Props {
   title: string;
   description?: string;
+  image?: string;
+  imageAlt?: string;
+  ogType?: 'website' | 'article';
+  includeStructuredData?: boolean;
   activeNav?: 'home' | 'projects' | 'about' | 'socials';
   hidePublicNav?: boolean;
   robots?: string;
   snackbarMessage?: string | null;
 }
 
+const { content: siteContent } = await resolveSiteContent(Astro.locals);
+
 const {
   title,
-  description = site.description,
+  description = siteContent.metaDescription,
+  image = '/og-preview.png',
+  imageAlt = `${siteContent.brand} website preview`,
+  ogType = 'website',
+  includeStructuredData = false,
   activeNav = 'home',
   hidePublicNav = false,
   robots,
   snackbarMessage = null,
 } = Astro.props;
+
+const plainDescription = description.replace(/\s+/g, ' ').trim();
+const forwardedProto = Astro.request.headers.get('x-forwarded-proto')?.split(',')[0].trim();
+const forwardedHost = Astro.request.headers.get('x-forwarded-host')?.split(',')[0].trim();
+const validForwardedHost = forwardedHost && /^[a-z0-9.-]+(?::\d{1,5})?$/i.test(forwardedHost) ? forwardedHost : '';
+const protocol =
+  forwardedProto === 'http' || forwardedProto === 'https'
+    ? forwardedProto
+    : Astro.url.protocol.replace(':', '');
+const host = validForwardedHost || Astro.url.host;
+const origin = host ? `${protocol}://${host}` : Astro.url.origin;
+const canonicalUrl = new URL(Astro.url.pathname, origin).toString();
+const ogImageUrl = /^https?:\/\//i.test(image)
+  ? image
+  : new URL(image.startsWith('/') ? image : `/${image}`, origin).toString();
+const isDefaultPreview = image === '/og-preview.png';
+const isNoIndex = Boolean(robots && /noindex/i.test(robots));
+
+const structuredDataJson = includeStructuredData
+  ? JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Person',
+      name: siteContent.owner,
+      alternateName: siteContent.brand,
+      jobTitle: siteContent.role,
+      description: plainDescription,
+      url: canonicalUrl,
+      image: ogImageUrl,
+    }).replace(/</g, '\\u003c')
+  : null;
 ---
 
 <!doctype html>
@@ -30,15 +70,38 @@ const {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" href="/favicon.ico" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content={description} />
-    {robots && <meta name="robots" content={robots} />}
-    <meta property="og:title" content={title} />
-    <meta property="og:description" content={description} />
-    <meta property="og:type" content="website" />
     <title>{title}</title>
+    {!isNoIndex && <link rel="canonical" href={canonicalUrl} />}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#141218" />
+    <meta name="description" content={plainDescription} />
+    {robots && <meta name="robots" content={robots} />}
+    <meta property="og:site_name" content={siteContent.brand} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={plainDescription} />
+    {!isNoIndex && <meta property="og:url" content={canonicalUrl} />}
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:alt" content={imageAlt} />
+    {
+      isDefaultPreview && (
+        <>
+          <meta property="og:image:type" content="image/png" />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+        </>
+      )
+    }
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={plainDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+    {structuredDataJson && <script is:inline type="application/ld+json" set:html={structuredDataJson} />}
   </head>
   <body
     data-bottom-nav={hidePublicNav ? undefined : 'true'}
@@ -51,13 +114,22 @@ const {
       Skip to main content
     </a>
 
-    {!hidePublicNav && <TopAppBar active={activeNav} />}
+    {!hidePublicNav && <TopAppBar active={activeNav} brand={siteContent.brand} showAdmin={Astro.locals.isAdmin} />}
 
     <main id="main" tabindex="-1" class="flex-1 focus:outline-none">
       <slot />
     </main>
 
-    {!hidePublicNav && <Footer />}
+    {
+      !hidePublicNav && (
+        <Footer
+          brand={siteContent.brand}
+          owner={siteContent.owner}
+          role={siteContent.role}
+          showAdmin={Astro.locals.isAdmin}
+        />
+      )
+    }
     {!hidePublicNav && <BottomNav active={activeNav} />}
     <Snackbar initialMessage={snackbarMessage} />
 
@@ -75,10 +147,14 @@ const {
               { id: 'socials', nav: 'socials' },
             ]
               .map((entry) => ({
+                id: entry.id,
                 nav: entry.nav,
                 el: document.getElementById(entry.id),
               }))
-              .filter((entry): entry is { nav: string; el: HTMLElement } => Boolean(entry.el));
+              .filter((entry): entry is { id: string; nav: string; el: HTMLElement } => Boolean(entry.el));
+
+            let lockedNav: string | null = null;
+            let scrollRafId = 0;
 
             function setActiveNav(navId: string) {
               for (const container of [desktopNav, mobileNav]) {
@@ -93,21 +169,172 @@ const {
               }
             }
 
+            let pickActiveNav = () => {};
+
             if (sections.length > 0 && 'IntersectionObserver' in window) {
+              const ratios = new Map<string, number>();
+              let footerVisible = false;
+
+              pickActiveNav = () => {
+                if (lockedNav) return;
+                if (footerVisible && window.scrollY > 0) {
+                  setActiveNav('socials');
+                  return;
+                }
+                let bestNav: string | null = null;
+                let bestRatio = 0;
+                for (const s of sections) {
+                  const ratio = ratios.get(s.nav) ?? 0;
+                  if (ratio > bestRatio) {
+                    bestRatio = ratio;
+                    bestNav = s.nav;
+                  }
+                }
+                if (bestNav) setActiveNav(bestNav);
+              };
+
               const observer = new IntersectionObserver(
                 (entries) => {
-                  const visible = entries
-                    .filter((entry) => entry.isIntersecting)
-                    .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-                  if (visible) {
-                    const match = sections.find((s) => s.el === visible.target);
-                    if (match) setActiveNav(match.nav);
+                  for (const entry of entries) {
+                    const match = sections.find((s) => s.el === entry.target);
+                    if (!match) continue;
+                    ratios.set(match.nav, entry.isIntersecting ? entry.intersectionRatio : 0);
                   }
+                  pickActiveNav();
                 },
-                { rootMargin: '-25% 0px -55% 0px', threshold: [0, 0.2, 0.5] },
+                { rootMargin: '-20% 0px -50% 0px', threshold: [0, 0.2, 0.5] },
               );
               for (const s of sections) observer.observe(s.el);
+
+              // Ensure the bottom-most section activates even on tall desktop viewports.
+              const footer = document.querySelector('footer');
+              if (footer) {
+                const footerObserver = new IntersectionObserver(
+                  (entries) => {
+                    footerVisible = Boolean(entries[0]?.isIntersecting);
+                    pickActiveNav();
+                  },
+                  { threshold: 0.75 },
+                );
+                footerObserver.observe(footer);
+              }
+
+              window.addEventListener('hashchange', () => {
+                const hash = window.location.hash.slice(1);
+                const match = sections.find((s) => s.id === hash);
+                if (match) setActiveNav(match.nav);
+              });
             }
+
+            // M3 standard easing (cubic-bezier(0.2, 0, 0, 1)) evaluated in rAF because
+            // CSS smooth scroll can stall in embedded Chromium views.
+            function sampleCubic(t: number, p1: number, p2: number): number {
+              const cx = 3 * p1;
+              const bx = 3 * (p2 - p1) - cx;
+              const ax = 1 - cx - bx;
+              return ((ax * t + bx) * t + cx) * t;
+            }
+
+            function sampleCubicDerivative(t: number, p1: number, p2: number): number {
+              const cx = 3 * p1;
+              const bx = 3 * (p2 - p1) - cx;
+              const ax = 1 - cx - bx;
+              return (3 * ax * t + 2 * bx) * t + cx;
+            }
+
+            function easeStandard(progress: number): number {
+              if (progress <= 0) return 0;
+              if (progress >= 1) return 1;
+              let t = progress;
+              for (let i = 0; i < 6; i++) {
+                const err = sampleCubic(t, 0.2, 0) - progress;
+                if (Math.abs(err) < 1e-6) break;
+                const slope = sampleCubicDerivative(t, 0.2, 0);
+                if (Math.abs(slope) < 1e-6) break;
+                t -= err / slope;
+              }
+              return sampleCubic(Math.max(0, Math.min(1, t)), 0, 1);
+            }
+
+            function stopScrollAnimation(syncNav = true) {
+              if (scrollRafId) {
+                window.cancelAnimationFrame(scrollRafId);
+                scrollRafId = 0;
+              }
+              if (lockedNav) {
+                lockedNav = null;
+                if (syncNav) pickActiveNav();
+              }
+            }
+
+            const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+            window.addEventListener('wheel', () => stopScrollAnimation(), { passive: true });
+            window.addEventListener('touchstart', () => stopScrollAnimation(), { passive: true });
+            window.addEventListener('keydown', (e) => {
+              if (SCROLL_KEYS.has(e.key)) stopScrollAnimation();
+            });
+            document.addEventListener('visibilitychange', () => {
+              if (document.hidden) stopScrollAnimation();
+            });
+
+            function animateScrollTo(targetEl: HTMLElement, targetId: string, navId: string) {
+              stopScrollAnimation(false);
+
+              const startY = window.scrollY;
+              const scrollPaddingTop = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+              const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+              const rawTargetY = startY + targetEl.getBoundingClientRect().top - scrollPaddingTop;
+              const targetY = targetId === 'top' ? 0 : Math.max(0, Math.min(rawTargetY, maxScrollY));
+              const delta = targetY - startY;
+
+              setActiveNav(navId);
+
+              if (Math.abs(delta) < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                window.scrollTo(0, targetY);
+                return;
+              }
+
+              lockedNav = navId;
+              const duration = Math.min(620, Math.max(340, 260 + Math.abs(delta) * 0.12));
+              const startTime = performance.now();
+
+              function step(now: number) {
+                const progress = Math.min(1, (now - startTime) / duration);
+                window.scrollTo(0, startY + delta * easeStandard(progress));
+                if (progress < 1) {
+                  scrollRafId = window.requestAnimationFrame(step);
+                } else {
+                  scrollRafId = 0;
+                  lockedNav = null;
+                  pickActiveNav();
+                }
+              }
+
+              scrollRafId = window.requestAnimationFrame(step);
+            }
+
+            function handleNavClick(e: Event) {
+              if (!(e instanceof MouseEvent)) return;
+              if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+              const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>('[data-nav-id]') : null;
+              if (!link) return;
+
+              const url = new URL(link.href, window.location.origin);
+              if (url.origin !== window.location.origin || url.pathname !== '/' || !url.hash) return;
+
+              const targetId = url.hash.slice(1);
+              const targetEl = document.getElementById(targetId);
+              if (!targetEl || !link.dataset.navId) return;
+
+              e.preventDefault();
+              if (window.location.hash !== url.hash) {
+                history.pushState(null, '', url);
+              }
+              animateScrollTo(targetEl, targetId, link.dataset.navId);
+            }
+
+            desktopNav?.addEventListener('click', handleNavClick);
+            mobileNav?.addEventListener('click', handleNavClick);
           }
         </script>
       )

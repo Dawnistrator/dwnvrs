@@ -1,0 +1,23 @@
+---
+import type { TextRun } from '../lib/projects';
+
+interface Props {
+  runs: TextRun[];
+}
+
+const { runs } = Astro.props;
+---
+
+{
+  runs.map((run) =>
+    run.kind === 'bold' ? (
+      <strong class="font-semibold text-on-surface">{run.value}</strong>
+    ) : run.kind === 'code' ? (
+      <code class="rounded-xs bg-surface-container-highest px-1.5 py-0.5 font-mono text-[0.9em] text-on-surface">
+        {run.value}
+      </code>
+    ) : (
+      run.value
+    ),
+  )
+}

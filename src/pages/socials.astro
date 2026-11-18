@@ -1,16 +1,19 @@
 ---
 import Icon from '../components/Icon.astro';
 import SocialLinksList from '../components/SocialLinksList.astro';
-import { site } from '../config/site';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { resolveSiteContent } from '../lib/site-content';
 import { getPublishedSocials } from '../lib/socials';
 
-const socialsResult = await getPublishedSocials(Astro.locals.supabase);
+const [{ content }, socialsResult] = await Promise.all([
+  resolveSiteContent(Astro.locals),
+  getPublishedSocials(Astro.locals.supabase),
+]);
 ---
 
 <BaseLayout
-  title={`Social media | ${site.brand}`}
-  description={`Official social media links and profiles for ${site.owner} (${site.brand}).`}
+  title={`Social media | ${content.brand}`}
+  description={`Official social media links and profiles for ${content.owner} (${content.brand}).`}
   activeNav="socials"
 >
   <div class="container-page space-y-10 py-10 sm:py-14 lg:py-16">
@@ -19,14 +22,18 @@ const socialsResult = await getPublishedSocials(Astro.locals.supabase);
         <Icon name="arrow-back" />
         <span>Back home</span>
       </a>
-      <a href="/admin?tab=socials" class="btn btn-outlined">
-        Manage links
-      </a>
+      {
+        Astro.locals.isAdmin && (
+          <a href="/admin?tab=socials" class="btn btn-outlined">
+            Manage links
+          </a>
+        )
+      }
     </div>
 
     <header class="max-w-2xl space-y-4">
       <p class="text-label-lg text-primary">
-        {site.brand} · {site.owner}
+        {content.brand} · {content.owner}
       </p>
       <h1 class="text-display-sm text-on-surface sm:text-display-md">
         Social media
@@ -37,7 +44,7 @@ const socialsResult = await getPublishedSocials(Astro.locals.supabase);
     </header>
 
     <section aria-label="Social media directory">
-      <SocialLinksList result={socialsResult} headingLevel="h2" />
+      <SocialLinksList result={socialsResult} headingLevel="h2" showAdmin={Astro.locals.isAdmin} />
     </section>
   </div>
 </BaseLayout>

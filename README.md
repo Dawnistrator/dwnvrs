@@ -4,7 +4,7 @@ Personal portfolio and case-study site for Dawn (DWNVRS), built with Astro, Type
 
 ## Features
 
-- Material Design 3 dark palette (`#8C52FF` seed on `#000000` surface) defined in `src/styles/m3-tokens.css` and mapped into Tailwind CSS v4 in `src/styles/global.css`.
+- Material Design 3 dark palette (`#8C52FF` accent on `#141218` M3 surface) defined in `src/styles/m3-tokens.css` and mapped into Tailwind CSS v4 in `src/styles/global.css`.
 - Home page (`/`) with asymmetric hero, interactive project category filter chips, skills overview, and a live social media links preview.
 - Dedicated social media directory page (`/socials`) backed by Supabase `public.social_links`.
 - Dynamic case-study pages (`/projects/[slug]`) with gallery support and clean 404/error states.

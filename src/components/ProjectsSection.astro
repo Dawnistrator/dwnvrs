@@ -1,13 +1,22 @@
 ---
+import { site } from '../config/site';
 import type { ProjectsResult } from '../lib/projects';
 import Icon from './Icon.astro';
 import ProjectCard from './ProjectCard.astro';
 
 interface Props {
   result: ProjectsResult;
+  heading?: string;
+  subtitle?: string;
+  showAdmin?: boolean;
 }
 
-const { result } = Astro.props;
+const {
+  result,
+  heading = site.projectsSection.heading,
+  subtitle = site.projectsSection.subtitle,
+  showAdmin = false,
+} = Astro.props;
 const categories = result.status === 'error' ? [] : ['All', ...new Set(result.projects.map((p) => p.category))];
 const remainingCount = Math.max(0, result.projects.length - 1);
 const gridColumns =
@@ -23,11 +32,9 @@ const gridColumns =
     <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
       <div class="max-w-2xl space-y-2">
         <h2 id="projects-heading" class="text-headline-sm text-on-surface sm:text-headline-md">
-          Projects
+          {heading}
         </h2>
-        <p class="text-body-lg text-on-surface-variant">
-          Selected apps and websites, with architecture notes and source links where public.
-        </p>
+        {subtitle && <p class="text-body-lg text-on-surface-variant">{subtitle}</p>}
       </div>
 
       {
@@ -60,9 +67,13 @@ const gridColumns =
               ? 'Supabase is not connected yet. Showing built-in placeholder entries until environment keys are configured.'
               : 'No projects are published in Supabase yet. Showing built-in placeholder entries until you publish your first project.'}
           </p>
-          <a href="/admin" class="btn btn-text self-start sm:self-center">
-            Open admin
-          </a>
+          {
+            showAdmin && (
+              <a href="/admin" class="btn btn-text self-start sm:self-center">
+                Open admin
+              </a>
+            )
+          }
         </div>
       )
     }

@@ -5,6 +5,12 @@
  */
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
+export interface SkillGroup {
+  title: string;
+  note: string;
+  items: string[];
+}
+
 export type Database = {
   __InternalSupabase: {
     PostgrestVersion: '12';
@@ -110,6 +116,87 @@ export type Database = {
         };
         Relationships: [];
       };
+      site_content: {
+        Row: {
+          id: string;
+          brand: string;
+          owner: string;
+          role: string;
+          meta_description: string;
+          hero_eyebrow: string;
+          hero_heading: string;
+          hero_bio: string;
+          hero_primary_cta_label: string;
+          hero_primary_cta_href: string;
+          hero_secondary_cta_label: string;
+          hero_secondary_cta_href: string;
+          card_focus: string;
+          card_workflow: string;
+          card_stack: string;
+          projects_heading: string;
+          projects_subtitle: string;
+          about_heading: string;
+          about_paragraphs: string;
+          skills: Json;
+          socials_heading: string;
+          socials_subtitle: string;
+          socials_cta_label: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          brand?: string;
+          owner?: string;
+          role?: string;
+          meta_description?: string;
+          hero_eyebrow?: string;
+          hero_heading?: string;
+          hero_bio?: string;
+          hero_primary_cta_label?: string;
+          hero_primary_cta_href?: string;
+          hero_secondary_cta_label?: string;
+          hero_secondary_cta_href?: string;
+          card_focus?: string;
+          card_workflow?: string;
+          card_stack?: string;
+          projects_heading?: string;
+          projects_subtitle?: string;
+          about_heading?: string;
+          about_paragraphs?: string;
+          skills?: Json;
+          socials_heading?: string;
+          socials_subtitle?: string;
+          socials_cta_label?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          brand?: string;
+          owner?: string;
+          role?: string;
+          meta_description?: string;
+          hero_eyebrow?: string;
+          hero_heading?: string;
+          hero_bio?: string;
+          hero_primary_cta_label?: string;
+          hero_primary_cta_href?: string;
+          hero_secondary_cta_label?: string;
+          hero_secondary_cta_href?: string;
+          card_focus?: string;
+          card_workflow?: string;
+          card_stack?: string;
+          projects_heading?: string;
+          projects_subtitle?: string;
+          about_heading?: string;
+          about_paragraphs?: string;
+          skills?: Json;
+          socials_heading?: string;
+          socials_subtitle?: string;
+          socials_cta_label?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -124,3 +211,5 @@ export type ProjectRow = Database['public']['Tables']['projects']['Row'];
 export type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 export type SocialLinkRow = Database['public']['Tables']['social_links']['Row'];
 export type SocialLinkInsert = Database['public']['Tables']['social_links']['Insert'];
+export type SiteContentRow = Database['public']['Tables']['site_content']['Row'];
+export type SiteContentInsert = Database['public']['Tables']['site_content']['Insert'];

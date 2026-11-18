@@ -7,9 +7,10 @@ interface Props {
   result: SocialsResult;
   compact?: boolean;
   headingLevel?: 'h2' | 'h3';
+  showAdmin?: boolean;
 }
 
-const { result, compact = false, headingLevel = 'h3' } = Astro.props;
+const { result, compact = false, headingLevel = 'h3', showAdmin = false } = Astro.props;
 const list = compact ? result.socials.slice(0, 6) : result.socials;
 const HeadingTag = headingLevel;
 
@@ -44,21 +45,31 @@ const gridColumns =
           Configure <code>.env</code> and run <code>supabase/schema.sql</code> to store social media links.
         </p>
       </div>
-      <a href="/admin?tab=socials" class="btn btn-tonal">
-        Open admin
-      </a>
+      {
+        showAdmin && (
+          <a href="/admin?tab=socials" class="btn btn-tonal">
+            Open admin
+          </a>
+        )
+      }
     </div>
   ) : list.length === 0 ? (
     <div class="card-elevated flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-1">
         <p class="text-title-md text-on-surface">No social links added yet</p>
         <p class="text-body-md text-on-surface-variant">
-          Add your social profiles from the Admin dashboard and they will appear here automatically.
+          {showAdmin
+            ? 'Add your social profiles from the Admin dashboard and they will appear here automatically.'
+            : 'Social media links will appear here once added.'}
         </p>
       </div>
-      <a href="/admin?tab=socials" class="btn btn-tonal">
-        Add social links
-      </a>
+      {
+        showAdmin && (
+          <a href="/admin?tab=socials" class="btn btn-tonal">
+            Add social links
+          </a>
+        )
+      }
     </div>
   ) : (
     <ul class:list={['grid gap-4', gridColumns]}>

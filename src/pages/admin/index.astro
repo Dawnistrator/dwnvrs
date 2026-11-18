@@ -1,10 +1,11 @@
 ---
 import { actions, isInputError } from 'astro:actions';
+import BrandMark from '../../components/BrandMark.astro';
 import Icon from '../../components/Icon.astro';
 import SocialBrandIcon, { SOCIAL_BRAND_PRESETS } from '../../components/SocialBrandIcon.astro';
-import { site } from '../../config/site';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import type { ProjectRow, SocialLinkRow } from '../../lib/database.types';
+import { resolveSiteContent } from '../../lib/site-content';
 
 const logoutResult = Astro.getActionResult(actions.admin.logout);
 if (logoutResult?.data?.ok) {
@@ -21,6 +22,7 @@ const saveProjectResult = Astro.getActionResult(actions.admin.saveProject);
 const deleteProjectResult = Astro.getActionResult(actions.admin.deleteProject);
 const saveSocialResult = Astro.getActionResult(actions.admin.saveSocial);
 const deleteSocialResult = Astro.getActionResult(actions.admin.deleteSocial);
+const saveSectionsResult = Astro.getActionResult(actions.admin.saveSiteContent);
 
 if (deleteProjectResult?.data?.ok) {
   return Astro.redirect('/admin?deleted=project');
@@ -31,20 +33,27 @@ if (saveSocialResult?.data) {
 if (deleteSocialResult?.data?.ok) {
   return Astro.redirect('/admin?tab=socials&deleted=social');
 }
+if (saveSectionsResult?.data?.ok) {
+  return Astro.redirect('/admin?tab=sections&savedSections=1');
+}
 
 const editParam = Astro.url.searchParams.get('edit');
 const editSocialParam = Astro.url.searchParams.get('editSocial');
 const tabParam = Astro.url.searchParams.get('tab');
 const savedSlugParam = Astro.url.searchParams.get('saved');
 const savedSocialParam = Astro.url.searchParams.get('savedSocial');
+const savedSectionsParam = Astro.url.searchParams.get('savedSections');
 const deletedParam = Astro.url.searchParams.get('deleted');
 
-let initialTab: 'projects' | 'socials' = tabParam === 'socials' ? 'socials' : 'projects';
+let initialTab: 'projects' | 'socials' | 'sections' =
+  tabParam === 'socials' ? 'socials' : tabParam === 'sections' ? 'sections' : 'projects';
 if (saveSocialResult || deleteSocialResult || editSocialParam) {
   initialTab = 'socials';
+} else if (saveSectionsResult) {
+  initialTab = 'sections';
 }
 
-const [projectsRes, socialsRes] = await Promise.all([
+const [projectsRes, socialsRes, siteContentResult] = await Promise.all([
   supabase
     .from('projects')
     .select('*')
@@ -56,10 +65,14 @@ const [projectsRes, socialsRes] = await Promise.all([
     .select('*')
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true }),
+  resolveSiteContent(Astro.locals),
 ]);
 
 const projects: ProjectRow[] = projectsRes.data ?? [];
 const socialLinks: SocialLinkRow[] = socialsRes.data ?? [];
+const homeContent = siteContentResult.content;
+const siteContentMissingTable =
+  siteContentResult.status === 'fallback' && siteContentResult.reason === 'missing-table';
 
 const editingProject =
   editParam && !deleteProjectResult?.data?.ok ? projects.find((p) => p.id === editParam) ?? null : null;
@@ -74,6 +87,10 @@ const socialFieldErrors = saveSocialResult?.error && isInputError(saveSocialResu
 const socialTopError =
   saveSocialResult?.error && !isInputError(saveSocialResult.error) ? saveSocialResult.error.message : null;
 
+const sectionsFieldErrors = saveSectionsResult?.error && isInputError(saveSectionsResult.error) ? saveSectionsResult.error.fields : {};
+const sectionsTopError =
+  saveSectionsResult?.error && !isInputError(saveSectionsResult.error) ? saveSectionsResult.error.message : null;
+
 let snackbarMessage: string | null = null;
 if (saveProjectResult?.data) {
   snackbarMessage = saveProjectResult.data.created
@@ -83,6 +100,8 @@ if (saveProjectResult?.data) {
   snackbarMessage = `Project "${savedSlugParam}" saved.`;
 } else if (savedSocialParam) {
   snackbarMessage = `Social link "${savedSocialParam}" saved.`;
+} else if (savedSectionsParam === '1') {
+  snackbarMessage = 'Home page sections updated.';
 } else if (deletedParam === 'project') {
   snackbarMessage = 'Project deleted.';
 } else if (deletedParam === 'social') {
@@ -91,8 +110,8 @@ if (saveProjectResult?.data) {
 ---
 
 <BaseLayout
-  title={`Admin | ${site.brand}`}
-  description={`Manage portfolio projects and social media links for ${site.brand}.`}
+  title={`Admin | ${homeContent.brand}`}
+  description={`Manage portfolio projects, home page sections, and social media links for ${homeContent.brand}.`}
   hidePublicNav={true}
   robots="noindex, nofollow"
   snackbarMessage={snackbarMessage}
@@ -102,9 +121,10 @@ if (saveProjectResult?.data) {
       <div class="flex items-center gap-3">
         <a
           href="/admin"
-          class="state-layer inline-flex min-h-11 items-center rounded-full px-3 text-title-md font-bold text-on-surface"
+          class="state-layer inline-flex min-h-11 items-center gap-2.5 rounded-full px-3 text-title-md font-bold text-on-surface"
         >
-          {site.brand} Admin
+          <BrandMark class="size-6 shrink-0 text-on-surface" />
+          <span>{homeContent.brand} Admin</span>
         </a>
         {user.email && <span class="hidden text-body-sm text-on-surface-variant sm:inline">{user.email}</span>}
       </div>
@@ -130,7 +150,7 @@ if (saveProjectResult?.data) {
       <div class="space-y-1">
         <h1 class="text-headline-md text-on-surface sm:text-headline-lg">Workspace</h1>
         <p class="text-body-md text-on-surface-variant">
-          Create or update portfolio projects and manage your social media links.
+          Create or update portfolio projects, manage social links, and edit all home page sections.
         </p>
       </div>
 
@@ -139,7 +159,7 @@ if (saveProjectResult?.data) {
         role="tablist"
         aria-label="Admin sections"
         data-admin-tabs
-        class="inline-flex w-full rounded-full bg-surface-container p-1 sm:w-auto"
+        class="inline-flex w-full flex-wrap rounded-full bg-surface-container p-1 sm:w-auto"
       >
         <button
           id="tab-projects"
@@ -149,7 +169,7 @@ if (saveProjectResult?.data) {
           aria-controls="panel-projects"
           tabindex={initialTab === 'projects' ? 0 : -1}
           data-tab="projects"
-          class="state-layer flex-1 rounded-full min-h-11 px-5 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none"
+          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
         >
           Projects ({projects.length})
         </button>
@@ -161,9 +181,21 @@ if (saveProjectResult?.data) {
           aria-controls="panel-socials"
           tabindex={initialTab === 'socials' ? 0 : -1}
           data-tab="socials"
-          class="state-layer flex-1 rounded-full min-h-11 px-5 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none"
+          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
         >
           Socials ({socialLinks.length})
+        </button>
+        <button
+          id="tab-sections"
+          type="button"
+          role="tab"
+          aria-selected={initialTab === 'sections' ? 'true' : 'false'}
+          aria-controls="panel-sections"
+          tabindex={initialTab === 'sections' ? 0 : -1}
+          data-tab="sections"
+          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
+        >
+          Home sections
         </button>
       </div>
     </div>
@@ -332,7 +364,9 @@ if (saveProjectResult?.data) {
               class="field-input"
             >{editingProject?.content ?? ''}</textarea>
             <label for="proj-content" class="field-label">Case study details</label>
-            <p id="proj-content-support" class="field-support">Separate paragraphs with a blank line.</p>
+            <p id="proj-content-support" class="field-support">
+              Supports section headings, bullet or numbered lists (- / 1.), **bold** lead-ins, and paragraphs separated by a blank line.
+            </p>
             <p id="proj-content-error" class="field-error">
               <Icon name="error" />
               <span data-error-for="content">{saveFieldErrors.content?.[0] ?? 'Keep under 20,000 characters.'}</span>
@@ -866,6 +900,708 @@ if (saveProjectResult?.data) {
         }
       </div>
     </section>
+
+    <!-- Home Sections Tab Panel -->
+    <section
+      id="panel-sections"
+      role="tabpanel"
+      aria-labelledby="tab-sections"
+      hidden={initialTab !== 'sections'}
+      class="space-y-6"
+    >
+      {
+        siteContentMissingTable && (
+          <div role="alert" class="rounded-xl border border-error bg-error-container/30 p-5 space-y-2">
+            <div class="flex items-start gap-3">
+              <Icon name="error" class="mt-0.5 size-5 shrink-0 text-error" />
+              <div class="space-y-1">
+                <p class="text-title-md text-on-surface">Database setup needed before saving home sections</p>
+                <p class="text-body-md text-on-surface-variant">
+                  Table <code>public.site_content</code> does not exist in Supabase yet. Run the updated{' '}
+                  <code>supabase/schema.sql</code> in Supabase Dashboard SQL Editor, then refresh this page.
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      <form
+        method="POST"
+        action={actions.admin.saveSiteContent}
+        data-sections-form
+        class="space-y-6"
+      >
+        <div
+          hidden={!sectionsTopError}
+          data-sections-alert
+          role="alert"
+          class="flex items-start gap-3 rounded-lg bg-error-container p-4 text-body-md text-on-error-container"
+        >
+          <Icon name="error" class="mt-0.5 size-5" />
+          <p data-sections-alert-text>{sectionsTopError ?? ''}</p>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <!-- Column A: Identity + ID Card + Projects Header -->
+          <div class="flex flex-col gap-6">
+            <!-- 1. Brand & Identity -->
+            <div class="card-filled rounded-xl p-6 sm:p-7 space-y-5">
+              <div class="space-y-1">
+                <h2 class="text-headline-sm text-on-surface">1. Brand &amp; identity</h2>
+                <p class="text-body-sm text-on-surface-variant">
+                  Used across the top navbar, footer, page titles, and Developer ID card.
+                </p>
+              </div>
+
+              <div class="grid gap-5 sm:grid-cols-2">
+                <div class="field">
+                  <input
+                    id="sec-brand"
+                    name="brand"
+                    type="text"
+                    required
+                    maxlength={40}
+                    placeholder=" "
+                    value={homeContent.brand}
+                    aria-invalid={sectionsFieldErrors.brand ? 'true' : undefined}
+                    aria-describedby="sec-brand-error"
+                    class="field-input"
+                  />
+                  <label for="sec-brand" class="field-label">Brand name</label>
+                  <p id="sec-brand-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="brand">{sectionsFieldErrors.brand?.[0] ?? 'Enter a brand name.'}</span>
+                  </p>
+                </div>
+
+                <div class="field">
+                  <input
+                    id="sec-owner"
+                    name="owner"
+                    type="text"
+                    required
+                    maxlength={60}
+                    placeholder=" "
+                    value={homeContent.owner}
+                    aria-invalid={sectionsFieldErrors.owner ? 'true' : undefined}
+                    aria-describedby="sec-owner-error"
+                    class="field-input"
+                  />
+                  <label for="sec-owner" class="field-label">Owner name</label>
+                  <p id="sec-owner-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="owner">{sectionsFieldErrors.owner?.[0] ?? 'Enter owner name.'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div class="field">
+                <input
+                  id="sec-role"
+                  name="role"
+                  type="text"
+                  required
+                  maxlength={80}
+                  placeholder=" "
+                  value={homeContent.role}
+                  aria-invalid={sectionsFieldErrors.role ? 'true' : undefined}
+                  aria-describedby="sec-role-error"
+                  class="field-input"
+                />
+                <label for="sec-role" class="field-label">Role / title</label>
+                <p id="sec-role-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="role">{sectionsFieldErrors.role?.[0] ?? 'Enter your role.'}</span>
+                </p>
+              </div>
+
+              <div class="field">
+                <textarea
+                  id="sec-meta-desc"
+                  name="meta_description"
+                  required
+                  maxlength={300}
+                  placeholder=" "
+                  aria-invalid={sectionsFieldErrors.meta_description ? 'true' : undefined}
+                  aria-describedby="sec-meta-desc-support sec-meta-desc-error"
+                  class="field-input min-h-24!"
+                >{homeContent.metaDescription}</textarea>
+                <label for="sec-meta-desc" class="field-label">SEO &amp; share description</label>
+                <p id="sec-meta-desc-support" class="field-support">Shown in search results and link previews.</p>
+                <p id="sec-meta-desc-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="meta_description">
+                    {sectionsFieldErrors.meta_description?.[0] ?? 'Enter a site description.'}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <!-- 3. Developer ID Card -->
+            <div class="card-filled rounded-xl p-6 sm:p-7 space-y-5">
+              <div class="space-y-1">
+                <h2 class="text-headline-sm text-on-surface">3. Developer ID card</h2>
+                <p class="text-body-sm text-on-surface-variant">
+                  Interactive lanyard badge rows displayed beside the hero copy.
+                </p>
+              </div>
+
+              <div class="grid gap-5 sm:grid-cols-2">
+                <div class="field">
+                  <input
+                    id="sec-card-focus"
+                    name="card_focus"
+                    type="text"
+                    maxlength={80}
+                    placeholder=" "
+                    value={homeContent.cardFocus}
+                    aria-invalid={sectionsFieldErrors.card_focus ? 'true' : undefined}
+                    aria-describedby="sec-card-focus-error"
+                    class="field-input"
+                  />
+                  <label for="sec-card-focus" class="field-label">ID card: Focus</label>
+                  <p id="sec-card-focus-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="card_focus">
+                      {sectionsFieldErrors.card_focus?.[0] ?? 'Keep under 80 characters.'}
+                    </span>
+                  </p>
+                </div>
+
+                <div class="field">
+                  <input
+                    id="sec-card-workflow"
+                    name="card_workflow"
+                    type="text"
+                    maxlength={80}
+                    placeholder=" "
+                    value={homeContent.cardWorkflow}
+                    aria-invalid={sectionsFieldErrors.card_workflow ? 'true' : undefined}
+                    aria-describedby="sec-card-workflow-error"
+                    class="field-input"
+                  />
+                  <label for="sec-card-workflow" class="field-label">ID card: Workflow</label>
+                  <p id="sec-card-workflow-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="card_workflow">
+                      {sectionsFieldErrors.card_workflow?.[0] ?? 'Keep under 80 characters.'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div class="field">
+                <input
+                  id="sec-card-stack"
+                  name="card_stack"
+                  type="text"
+                  maxlength={120}
+                  placeholder=" "
+                  value={homeContent.cardStack}
+                  aria-invalid={sectionsFieldErrors.card_stack ? 'true' : undefined}
+                  aria-describedby="sec-card-stack-error"
+                  class="field-input"
+                />
+                <label for="sec-card-stack" class="field-label">ID card: Stack</label>
+                <p id="sec-card-stack-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="card_stack">
+                    {sectionsFieldErrors.card_stack?.[0] ?? 'Keep under 120 characters.'}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <!-- 5. Projects Section Header -->
+            <div class="card-filled rounded-xl p-6 sm:p-7 space-y-5">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="space-y-1">
+                  <h2 class="text-headline-sm text-on-surface">5. Projects section</h2>
+                  <p class="text-body-sm text-on-surface-variant">Heading and intro above the projects showcase.</p>
+                </div>
+                <button type="button" class="btn btn-text px-3" data-switch-tab="projects">
+                  Edit project cards
+                </button>
+              </div>
+
+              <div class="field">
+                <input
+                  id="sec-proj-heading"
+                  name="projects_heading"
+                  type="text"
+                  required
+                  maxlength={100}
+                  placeholder=" "
+                  value={homeContent.projectsHeading}
+                  aria-invalid={sectionsFieldErrors.projects_heading ? 'true' : undefined}
+                  aria-describedby="sec-proj-heading-error"
+                  class="field-input"
+                />
+                <label for="sec-proj-heading" class="field-label">Projects heading</label>
+                <p id="sec-proj-heading-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="projects_heading">
+                    {sectionsFieldErrors.projects_heading?.[0] ?? 'Enter a Projects heading.'}
+                  </span>
+                </p>
+              </div>
+
+              <div class="field">
+                <textarea
+                  id="sec-proj-subtitle"
+                  name="projects_subtitle"
+                  maxlength={300}
+                  placeholder=" "
+                  aria-invalid={sectionsFieldErrors.projects_subtitle ? 'true' : undefined}
+                  aria-describedby="sec-proj-subtitle-error"
+                  class="field-input min-h-24!"
+                >{homeContent.projectsSubtitle}</textarea>
+                <label for="sec-proj-subtitle" class="field-label">Projects subtitle (optional)</label>
+                <p id="sec-proj-subtitle-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="projects_subtitle">
+                    {sectionsFieldErrors.projects_subtitle?.[0] ?? 'Keep under 300 characters.'}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column B: Hero Section + Social Media Header -->
+          <div class="flex flex-col gap-6">
+            <!-- 2. Hero Section -->
+            <div class="card-filled rounded-xl p-6 sm:p-7 space-y-5">
+              <div class="space-y-1">
+                <h2 class="text-headline-sm text-on-surface">2. Hero section</h2>
+                <p class="text-body-sm text-on-surface-variant">
+                  Opening eyebrow, display headline, multi-line bio, and action buttons.
+                </p>
+              </div>
+
+              <div class="field">
+                <input
+                  id="sec-hero-eyebrow"
+                  name="hero_eyebrow"
+                  type="text"
+                  maxlength={100}
+                  placeholder=" "
+                  value={homeContent.heroEyebrow}
+                  aria-invalid={sectionsFieldErrors.hero_eyebrow ? 'true' : undefined}
+                  aria-describedby="sec-hero-eyebrow-error"
+                  class="field-input"
+                />
+                <label for="sec-hero-eyebrow" class="field-label">Eyebrow label (optional)</label>
+                <p id="sec-hero-eyebrow-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="hero_eyebrow">
+                    {sectionsFieldErrors.hero_eyebrow?.[0] ?? 'Keep under 100 characters.'}
+                  </span>
+                </p>
+              </div>
+
+              <div class="field">
+                <input
+                  id="sec-hero-heading"
+                  name="hero_heading"
+                  type="text"
+                  required
+                  maxlength={160}
+                  placeholder=" "
+                  value={homeContent.heroHeading}
+                  aria-invalid={sectionsFieldErrors.hero_heading ? 'true' : undefined}
+                  aria-describedby="sec-hero-heading-error"
+                  class="field-input"
+                />
+                <label for="sec-hero-heading" class="field-label">Main headline (H1)</label>
+                <p id="sec-hero-heading-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="hero_heading">
+                    {sectionsFieldErrors.hero_heading?.[0] ?? 'Enter a hero headline.'}
+                  </span>
+                </p>
+              </div>
+
+              <div class="field">
+                <textarea
+                  id="sec-hero-bio"
+                  name="hero_bio"
+                  required
+                  maxlength={1000}
+                  placeholder=" "
+                  aria-invalid={sectionsFieldErrors.hero_bio ? 'true' : undefined}
+                  aria-describedby="sec-hero-bio-support sec-hero-bio-error"
+                  class="field-input min-h-32!"
+                >{homeContent.heroBio}</textarea>
+                <label for="sec-hero-bio" class="field-label">Hero bio</label>
+                <p id="sec-hero-bio-support" class="field-support">Line breaks are preserved on the home page.</p>
+                <p id="sec-hero-bio-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="hero_bio">
+                    {sectionsFieldErrors.hero_bio?.[0] ?? 'Enter your hero bio.'}
+                  </span>
+                </p>
+              </div>
+
+              <div class="grid gap-5 sm:grid-cols-2">
+                <div class="field">
+                  <input
+                    id="sec-cta1-label"
+                    name="hero_primary_cta_label"
+                    type="text"
+                    required
+                    maxlength={60}
+                    placeholder=" "
+                    value={homeContent.heroPrimaryCtaLabel}
+                    aria-invalid={sectionsFieldErrors.hero_primary_cta_label ? 'true' : undefined}
+                    aria-describedby="sec-cta1-label-error"
+                    class="field-input"
+                  />
+                  <label for="sec-cta1-label" class="field-label">Primary button text</label>
+                  <p id="sec-cta1-label-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="hero_primary_cta_label">
+                      {sectionsFieldErrors.hero_primary_cta_label?.[0] ?? 'Enter button label.'}
+                    </span>
+                  </p>
+                </div>
+
+                <div class="field">
+                  <input
+                    id="sec-cta1-href"
+                    name="hero_primary_cta_href"
+                    type="text"
+                    required
+                    maxlength={200}
+                    placeholder=" "
+                    value={homeContent.heroPrimaryCtaHref}
+                    aria-invalid={sectionsFieldErrors.hero_primary_cta_href ? 'true' : undefined}
+                    aria-describedby="sec-cta1-href-error"
+                    class="field-input"
+                  />
+                  <label for="sec-cta1-href" class="field-label">Primary button link</label>
+                  <p id="sec-cta1-href-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="hero_primary_cta_href">
+                      {sectionsFieldErrors.hero_primary_cta_href?.[0] ?? 'Use /path, #section, or https://'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid gap-5 sm:grid-cols-2">
+                <div class="field">
+                  <input
+                    id="sec-cta2-label"
+                    name="hero_secondary_cta_label"
+                    type="text"
+                    required
+                    maxlength={60}
+                    placeholder=" "
+                    value={homeContent.heroSecondaryCtaLabel}
+                    aria-invalid={sectionsFieldErrors.hero_secondary_cta_label ? 'true' : undefined}
+                    aria-describedby="sec-cta2-label-error"
+                    class="field-input"
+                  />
+                  <label for="sec-cta2-label" class="field-label">Secondary button text</label>
+                  <p id="sec-cta2-label-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="hero_secondary_cta_label">
+                      {sectionsFieldErrors.hero_secondary_cta_label?.[0] ?? 'Enter button label.'}
+                    </span>
+                  </p>
+                </div>
+
+                <div class="field">
+                  <input
+                    id="sec-cta2-href"
+                    name="hero_secondary_cta_href"
+                    type="text"
+                    required
+                    maxlength={200}
+                    placeholder=" "
+                    value={homeContent.heroSecondaryCtaHref}
+                    aria-invalid={sectionsFieldErrors.hero_secondary_cta_href ? 'true' : undefined}
+                    aria-describedby="sec-cta2-href-error"
+                    class="field-input"
+                  />
+                  <label for="sec-cta2-href" class="field-label">Secondary button link</label>
+                  <p id="sec-cta2-href-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-section-error-for="hero_secondary_cta_href">
+                      {sectionsFieldErrors.hero_secondary_cta_href?.[0] ?? 'Use /path, #section, or https://'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Social Media Section Header -->
+            <div class="card-filled rounded-xl p-6 sm:p-7 space-y-5">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="space-y-1">
+                  <h2 class="text-headline-sm text-on-surface">4. Social media section</h2>
+                  <p class="text-body-sm text-on-surface-variant">Heading, subtitle, and link button label at the bottom.</p>
+                </div>
+                <button type="button" class="btn btn-text px-3" data-switch-tab="socials">
+                  Edit social links
+                </button>
+              </div>
+
+              <div class="field">
+                <input
+                  id="sec-soc-heading"
+                  name="socials_heading"
+                  type="text"
+                  required
+                  maxlength={100}
+                  placeholder=" "
+                  value={homeContent.socialsHeading}
+                  aria-invalid={sectionsFieldErrors.socials_heading ? 'true' : undefined}
+                  aria-describedby="sec-soc-heading-error"
+                  class="field-input"
+                />
+                <label for="sec-soc-heading" class="field-label">Socials heading</label>
+                <p id="sec-soc-heading-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="socials_heading">
+                    {sectionsFieldErrors.socials_heading?.[0] ?? 'Enter a Socials heading.'}
+                  </span>
+                </p>
+              </div>
+
+              <div class="field">
+                <textarea
+                  id="sec-soc-subtitle"
+                  name="socials_subtitle"
+                  maxlength={300}
+                  placeholder=" "
+                  aria-invalid={sectionsFieldErrors.socials_subtitle ? 'true' : undefined}
+                  aria-describedby="sec-soc-subtitle-error"
+                  class="field-input min-h-24!"
+                >{homeContent.socialsSubtitle}</textarea>
+                <label for="sec-soc-subtitle" class="field-label">Socials subtitle (optional)</label>
+                <p id="sec-soc-subtitle-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="socials_subtitle">
+                    {sectionsFieldErrors.socials_subtitle?.[0] ?? 'Keep under 300 characters.'}
+                  </span>
+                </p>
+              </div>
+
+              <div class="field">
+                <input
+                  id="sec-soc-cta"
+                  name="socials_cta_label"
+                  type="text"
+                  required
+                  maxlength={60}
+                  placeholder=" "
+                  value={homeContent.socialsCtaLabel}
+                  aria-invalid={sectionsFieldErrors.socials_cta_label ? 'true' : undefined}
+                  aria-describedby="sec-soc-cta-error"
+                  class="field-input"
+                />
+                <label for="sec-soc-cta" class="field-label">Directory button text</label>
+                <p id="sec-soc-cta-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="socials_cta_label">
+                    {sectionsFieldErrors.socials_cta_label?.[0] ?? 'Enter button label.'}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. About & Skills Full-Width Card -->
+        <div class="card-filled rounded-xl p-6 sm:p-7 space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="space-y-1">
+              <h2 class="text-headline-sm text-on-surface">6. About &amp; skills</h2>
+              <p class="text-body-sm text-on-surface-variant">
+                Edit your About story and manage the categorized skill chips displayed on the home page.
+              </p>
+            </div>
+            <button type="button" class="btn btn-tonal px-4" data-add-skill-group>
+              <Icon name="add" />
+              <span>Add skill category</span>
+            </button>
+          </div>
+
+          <div class="grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+            <div class="space-y-5">
+              <div class="field">
+                <input
+                  id="sec-about-heading"
+                  name="about_heading"
+                  type="text"
+                  required
+                  maxlength={100}
+                  placeholder=" "
+                  value={homeContent.aboutHeading}
+                  aria-invalid={sectionsFieldErrors.about_heading ? 'true' : undefined}
+                  aria-describedby="sec-about-heading-error"
+                  class="field-input"
+                />
+                <label for="sec-about-heading" class="field-label">About heading</label>
+                <p id="sec-about-heading-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="about_heading">
+                    {sectionsFieldErrors.about_heading?.[0] ?? 'Enter an About heading.'}
+                  </span>
+                </p>
+              </div>
+
+              <div class="field">
+                <textarea
+                  id="sec-about-body"
+                  name="about_paragraphs"
+                  maxlength={2000}
+                  placeholder=" "
+                  aria-invalid={sectionsFieldErrors.about_paragraphs ? 'true' : undefined}
+                  aria-describedby="sec-about-body-support sec-about-body-error"
+                  class="field-input min-h-40!"
+                >{homeContent.aboutParagraphs}</textarea>
+                <label for="sec-about-body" class="field-label">About paragraphs</label>
+                <p id="sec-about-body-support" class="field-support">
+                  Separate paragraphs with a blank line. First paragraph uses larger lead text.
+                </p>
+                <p id="sec-about-body-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-section-error-for="about_paragraphs">
+                    {sectionsFieldErrors.about_paragraphs?.[0] ?? 'Keep under 2,000 characters.'}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div class="space-y-4" data-skill-groups-list>
+              {
+                homeContent.skills.map((group, idx) => (
+                  <div class="card-elevated space-y-4 rounded-lg p-4 sm:p-5" data-skill-group>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                      <div class="field">
+                        <input
+                          id={`skill-title-${idx}`}
+                          name="skill_title"
+                          type="text"
+                          required
+                          maxlength={60}
+                          placeholder=" "
+                          aria-label="Category title"
+                          value={group.title}
+                          class="field-input"
+                        />
+                        <label for={`skill-title-${idx}`} class="field-label">Category title</label>
+                      </div>
+
+                      <div class="field">
+                        <input
+                          id={`skill-note-${idx}`}
+                          name="skill_note"
+                          type="text"
+                          maxlength={120}
+                          placeholder=" "
+                          aria-label="Short subtitle (optional)"
+                          value={group.note}
+                          class="field-input"
+                        />
+                        <label for={`skill-note-${idx}`} class="field-label">Short subtitle (optional)</label>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                      <div class="field flex-1">
+                        <input
+                          id={`skill-items-${idx}`}
+                          name="skill_items"
+                          type="text"
+                          maxlength={600}
+                          placeholder=" "
+                          aria-label="Skills (comma-separated)"
+                          value={group.items.join(', ')}
+                          class="field-input"
+                        />
+                        <label for={`skill-items-${idx}`} class="field-label">Skills (comma-separated)</label>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-text shrink-0 self-start text-error sm:mt-1.5"
+                        data-remove-skill-group
+                      >
+                        <Icon name="delete" />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-container-low p-5">
+          <button type="submit" class="btn btn-accent" data-sections-submit>
+            <Icon name="check" />
+            <span>Save home sections</span>
+          </button>
+          <a href="/" class="btn btn-outlined">
+            <span>View home page</span>
+            <Icon name="open-in-new" />
+          </a>
+        </div>
+      </form>
+
+      <template id="skill-group-template">
+        <div class="card-elevated space-y-4 rounded-lg p-4 sm:p-5" data-skill-group>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="field">
+              <input
+                name="skill_title"
+                type="text"
+                required
+                maxlength={60}
+                placeholder=" "
+                aria-label="Category title"
+                class="field-input"
+              />
+              <label class="field-label">Category title</label>
+            </div>
+
+            <div class="field">
+              <input
+                name="skill_note"
+                type="text"
+                maxlength={120}
+                placeholder=" "
+                aria-label="Short subtitle (optional)"
+                class="field-input"
+              />
+              <label class="field-label">Short subtitle (optional)</label>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+            <div class="field flex-1">
+              <input
+                name="skill_items"
+                type="text"
+                maxlength={600}
+                placeholder=" "
+                aria-label="Skills (comma-separated)"
+                class="field-input"
+              />
+              <label class="field-label">Skills (comma-separated)</label>
+            </div>
+            <button type="button" class="btn btn-text shrink-0 self-start text-error sm:mt-1.5" data-remove-skill-group>
+              <Icon name="delete" />
+              <span>Remove</span>
+            </button>
+          </div>
+        </div>
+      </template>
+    </section>
   </div>
 
   <!-- M3 Basic Dialog for destructive actions -->
@@ -909,10 +1645,10 @@ if (saveProjectResult?.data) {
       panel.hidden = name !== tabName;
     }
     const url = new URL(window.location.href);
-    if (tabName === 'socials') {
-      url.searchParams.set('tab', 'socials');
-    } else {
+    if (tabName === 'projects') {
       url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', tabName);
     }
     history.replaceState(null, '', url);
   }
@@ -921,6 +1657,16 @@ if (saveProjectResult?.data) {
     const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[role="tab"]') : null;
     if (btn?.dataset.tab) activateTab(btn.dataset.tab);
   });
+
+  for (const switchBtn of document.querySelectorAll<HTMLButtonElement>('[data-switch-tab]')) {
+    switchBtn.addEventListener('click', () => {
+      const target = switchBtn.dataset.switchTab;
+      if (target) {
+        activateTab(target, true);
+        window.scrollTo(0, 0);
+      }
+    });
+  }
 
   tabList?.addEventListener('keydown', (e) => {
     const currentIndex = tabs.findIndex((t) => t === document.activeElement);
@@ -1162,6 +1908,124 @@ if (saveProjectResult?.data) {
         }
       } catch {
         const msg = 'Network error while saving social link.';
+        if (alertBox && alertText) {
+          alertText.textContent = msg;
+          alertBox.hidden = false;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          const label = submitBtn.querySelector('span');
+          if (label) label.textContent = originalLabel;
+        }
+      }
+    });
+  }
+
+  /* ---------- Home Sections Form ---------- */
+  const sectionsForm = document.querySelector<HTMLFormElement>('[data-sections-form]');
+  if (sectionsForm) {
+    sectionsForm.noValidate = true;
+    const skillList = sectionsForm.querySelector<HTMLElement>('[data-skill-groups-list]');
+    const addGroupBtn = document.querySelector<HTMLButtonElement>('[data-add-skill-group]');
+    const groupTemplate = document.getElementById('skill-group-template') as HTMLTemplateElement | null;
+    const submitBtn = sectionsForm.querySelector<HTMLButtonElement>('[data-sections-submit]');
+    const alertBox = sectionsForm.querySelector<HTMLElement>('[data-sections-alert]');
+    const alertText = sectionsForm.querySelector<HTMLElement>('[data-sections-alert-text]');
+
+    function syncRemoveButtons() {
+      const cards = Array.from(skillList?.querySelectorAll<HTMLElement>('[data-skill-group]') ?? []);
+      const disableRemove = cards.length <= 1;
+      for (const btn of cards.map((card) => card.querySelector<HTMLButtonElement>('[data-remove-skill-group]'))) {
+        if (btn) btn.disabled = disableRemove;
+      }
+    }
+
+    syncRemoveButtons();
+
+    addGroupBtn?.addEventListener('click', () => {
+      if (!skillList || !groupTemplate) return;
+      const cards = skillList.querySelectorAll('[data-skill-group]');
+      if (cards.length >= 12) {
+        window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: 'Maximum of 12 skill categories.' } }));
+        return;
+      }
+      const fragment = groupTemplate.content.cloneNode(true) as DocumentFragment;
+      skillList.appendChild(fragment);
+      syncRemoveButtons();
+      const addedTitle = skillList.lastElementChild?.querySelector<HTMLInputElement>('input[name="skill_title"]');
+      addedTitle?.focus();
+    });
+
+    skillList?.addEventListener('click', (e) => {
+      const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[data-remove-skill-group]') : null;
+      if (!btn || btn.disabled) return;
+      const card = btn.closest<HTMLElement>('[data-skill-group]');
+      if (card && skillList.querySelectorAll('[data-skill-group]').length > 1) {
+        card.remove();
+        syncRemoveButtons();
+      }
+    });
+
+    function clearSectionsErrors() {
+      if (alertBox) alertBox.hidden = true;
+      for (const el of sectionsForm!.querySelectorAll<HTMLElement>('.field-input')) {
+        el.removeAttribute('aria-invalid');
+      }
+    }
+
+    function setSectionFieldError(name: string, message: string) {
+      const input = sectionsForm!.elements.namedItem(name);
+      const errSpan = sectionsForm!.querySelector<HTMLElement>(`[data-section-error-for="${name}"]`);
+      if (input instanceof HTMLElement) input.setAttribute('aria-invalid', 'true');
+      if (errSpan) errSpan.textContent = message;
+    }
+
+    sectionsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearSectionsErrors();
+
+      const originalLabel = submitBtn?.querySelector('span')?.textContent ?? 'Save home sections';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        const label = submitBtn.querySelector('span');
+        if (label) label.textContent = 'Saving...';
+      }
+
+      try {
+        const { data, error } = await actions.admin.saveSiteContent(new FormData(sectionsForm));
+        if (error) {
+          if (isInputError(error)) {
+            let focused = false;
+            for (const [key, messages] of Object.entries(error.fields)) {
+              const msg = messages?.[0];
+              if (msg) {
+                setSectionFieldError(key, msg);
+                if (!focused) {
+                  const fieldEl = sectionsForm.elements.namedItem(key);
+                  if (fieldEl instanceof HTMLElement) {
+                    fieldEl.focus();
+                    focused = true;
+                  }
+                }
+              }
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: 'Check the highlighted fields.' } }));
+          } else {
+            if (alertBox && alertText) {
+              alertText.textContent = error.message;
+              alertBox.hidden = false;
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: error.message } }));
+          }
+          return;
+        }
+
+        if (data?.ok) {
+          window.location.assign('/admin?tab=sections&savedSections=1');
+        }
+      } catch {
+        const msg = 'Network error while saving home sections.';
         if (alertBox && alertText) {
           alertText.textContent = msg;
           alertBox.hidden = false;

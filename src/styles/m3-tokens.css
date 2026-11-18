@@ -1,6 +1,6 @@
 /*
  * Material Design 3 system tokens, dark scheme.
- * Seed color: #8C52FF. Base surface is pure black (#000000) by owner direction;
+ * Brand seed: #8C52FF with M3 dark tonal surface ladder (#141218 base);
  * hierarchy comes from tonal surface-container steps, not shadows.
  *
  * Only `--md-sys-*` tokens live here. Tailwind maps them in global.css.
@@ -11,7 +11,7 @@
   /* ---- Color: brand accent ---- */
   /* Vivid seed tone. Reserved for the one primary action per screen. */
   --md-sys-color-accent: #8c52ff;
-  /* Label color on the accent fill. Black reads as a cut-out to the page (4.77:1). */
+  /* Label color on the accent fill. Black maintains WCAG AA contrast (4.77:1). */
   --md-sys-color-on-accent: #000000;
 
   /* ---- Color: primary ---- */
@@ -24,7 +24,7 @@
   /* ---- Color: secondary ---- */
   --md-sys-color-secondary: #ccc2dc;
   --md-sys-color-on-secondary: #332d41;
-  --md-sys-color-secondary-container: #2a2536;
+  --md-sys-color-secondary-container: #4a4458;
   --md-sys-color-on-secondary-container: #e8def8;
 
   /* ---- Color: error ---- */
@@ -33,21 +33,21 @@
   --md-sys-color-error-container: #8c1d18;
   --md-sys-color-on-error-container: #f9dedc;
 
-  /* ---- Color: surfaces (tonal elevation ladder) ---- */
-  --md-sys-color-background: #000000;
-  --md-sys-color-on-background: #e6e1e5;
-  --md-sys-color-surface: #000000;
-  --md-sys-color-surface-dim: #000000;
-  --md-sys-color-surface-bright: #2e2a38;
-  --md-sys-color-surface-container-lowest: #07060a;
-  --md-sys-color-surface-container-low: #121016;
-  --md-sys-color-surface-container: #1a1721;
-  --md-sys-color-surface-container-high: #24202e;
-  --md-sys-color-surface-container-highest: #2e2a38;
-  --md-sys-color-on-surface: #e6e1e5;
+  /* ---- Color: surfaces (M3 dark tonal elevation ladder) ---- */
+  --md-sys-color-background: #141218;
+  --md-sys-color-on-background: #e6e0e9;
+  --md-sys-color-surface: #141218;
+  --md-sys-color-surface-dim: #141218;
+  --md-sys-color-surface-bright: #3b383e;
+  --md-sys-color-surface-container-lowest: #0f0d13;
+  --md-sys-color-surface-container-low: #1d1b20;
+  --md-sys-color-surface-container: #211f26;
+  --md-sys-color-surface-container-high: #2b2930;
+  --md-sys-color-surface-container-highest: #36343b;
+  --md-sys-color-on-surface: #e6e0e9;
   --md-sys-color-on-surface-variant: #cac4d0;
-  --md-sys-color-inverse-surface: #e6e1e5;
-  --md-sys-color-inverse-on-surface: #313033;
+  --md-sys-color-inverse-surface: #e6e0e9;
+  --md-sys-color-inverse-on-surface: #322f35;
 
   /* ---- Color: outlines ---- */
   --md-sys-color-outline: #938f99;

@@ -1,8 +1,9 @@
 ---
 import { actions, isInputError } from 'astro:actions';
+import BrandMark from '../../components/BrandMark.astro';
 import Icon from '../../components/Icon.astro';
-import { site } from '../../config/site';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { resolveSiteContent } from '../../lib/site-content';
 import { isSupabaseConfigured } from '../../lib/supabase';
 
 const loginResult = Astro.getActionResult(actions.admin.login);
@@ -10,24 +11,28 @@ if (loginResult?.data?.ok) {
   return Astro.redirect('/admin');
 }
 
+const { content: siteContent } = await resolveSiteContent(Astro.locals);
 const fieldErrors = loginResult?.error && isInputError(loginResult.error) ? loginResult.error.fields : {};
 const topError = loginResult?.error && !isInputError(loginResult.error) ? loginResult.error.message : null;
 ---
 
 <BaseLayout
-  title={`Admin sign in | ${site.brand}`}
-  description={`Sign in to manage projects and social media links for ${site.brand}.`}
+  title={`Admin sign in | ${siteContent.brand}`}
+  description={`Sign in to manage projects, home sections, and social media links for ${siteContent.brand}.`}
   hidePublicNav={true}
   robots="noindex, nofollow"
 >
   <div class="container-page flex min-h-dvh flex-col items-center justify-center py-10">
     <div class="card-filled w-full max-w-md space-y-6 rounded-xl p-6 sm:p-8">
       <div class="space-y-2">
-        <p class="text-label-lg text-primary">{site.brand}</p>
+        <div class="flex items-center gap-2 text-label-lg text-primary">
+          <BrandMark class="size-5 shrink-0 text-on-surface" />
+          <span>{siteContent.brand}</span>
+        </div>
         <h1 class="text-headline-sm text-on-surface sm:text-headline-md">Admin sign in</h1>
         <p class="text-body-md text-on-surface-variant">
-          Sign in with an account listed in <code class="text-on-surface">public.admins</code> to edit projects and
-          social media links.
+          Sign in with an account listed in <code class="text-on-surface">public.admins</code> to edit projects, home
+          sections, and social media links.
         </p>
       </div>
 

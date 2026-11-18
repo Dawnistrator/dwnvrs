@@ -19,5 +19,7 @@ declare namespace App {
     isAdmin: boolean;
     /** Memoized admin lookup so middleware and actions share one auth round-trip. */
     adminCheck?: Promise<{ user: import('@supabase/supabase-js').User | null; isAdmin: boolean }>;
+    /** Memoized site content lookup shared across BaseLayout and page components. */
+    siteContent?: Promise<import('./lib/site-content').SiteContentResult>;
   }
 }

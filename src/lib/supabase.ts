@@ -46,6 +46,13 @@ export function createSupabaseServerClient(context: CookieContext): TypedSupabas
   });
 }
 
+/** True when the request includes a Supabase auth cookie (avoids unnecessary Auth calls on anonymous visits). */
+export function hasSupabaseAuthCookie(request: Request): boolean {
+  const header = request.headers.get('Cookie');
+  if (!header) return false;
+  return parseCookieHeader(header).some((cookie) => /^sb-.*-auth-token(?:\.\d+)?$/i.test(cookie.name));
+}
+
 /**
  * Resolve the signed-in user and whether they are on the admin allowlist.
  * Memoized on `locals` so middleware and actions share one auth round-trip.
