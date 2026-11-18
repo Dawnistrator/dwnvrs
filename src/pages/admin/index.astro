@@ -4,7 +4,8 @@ import BrandMark from '../../components/BrandMark.astro';
 import Icon from '../../components/Icon.astro';
 import SocialBrandIcon, { SOCIAL_BRAND_PRESETS } from '../../components/SocialBrandIcon.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import type { ProjectRow, SocialLinkRow } from '../../lib/database.types';
+import type { FavoriteCategory, FavoriteItemRow, ProjectRow, SocialLinkRow } from '../../lib/database.types';
+import { isMissingFavoritesTableError, normalizeFavoriteCoverUrl } from '../../lib/favorites';
 import { resolveSiteContent } from '../../lib/site-content';
 
 const logoutResult = Astro.getActionResult(actions.admin.logout);
@@ -22,6 +23,8 @@ const saveProjectResult = Astro.getActionResult(actions.admin.saveProject);
 const deleteProjectResult = Astro.getActionResult(actions.admin.deleteProject);
 const saveSocialResult = Astro.getActionResult(actions.admin.saveSocial);
 const deleteSocialResult = Astro.getActionResult(actions.admin.deleteSocial);
+const saveFavoriteResult = Astro.getActionResult(actions.admin.saveFavorite);
+const deleteFavoriteResult = Astro.getActionResult(actions.admin.deleteFavorite);
 const saveSectionsResult = Astro.getActionResult(actions.admin.saveSiteContent);
 
 if (deleteProjectResult?.data?.ok) {
@@ -33,27 +36,44 @@ if (saveSocialResult?.data) {
 if (deleteSocialResult?.data?.ok) {
   return Astro.redirect('/admin?tab=socials&deleted=social');
 }
+if (saveFavoriteResult?.data) {
+  return Astro.redirect(`/admin?tab=favorites&savedFavorite=${encodeURIComponent(saveFavoriteResult.data.title)}`);
+}
+if (deleteFavoriteResult?.data?.ok) {
+  return Astro.redirect('/admin?tab=favorites&deleted=favorite');
+}
 if (saveSectionsResult?.data?.ok) {
   return Astro.redirect('/admin?tab=sections&savedSections=1');
 }
 
 const editParam = Astro.url.searchParams.get('edit');
 const editSocialParam = Astro.url.searchParams.get('editSocial');
+const editFavoriteParam = Astro.url.searchParams.get('editFavorite');
+const categoryParam = Astro.url.searchParams.get('category');
 const tabParam = Astro.url.searchParams.get('tab');
 const savedSlugParam = Astro.url.searchParams.get('saved');
 const savedSocialParam = Astro.url.searchParams.get('savedSocial');
+const savedFavoriteParam = Astro.url.searchParams.get('savedFavorite');
 const savedSectionsParam = Astro.url.searchParams.get('savedSections');
 const deletedParam = Astro.url.searchParams.get('deleted');
 
-let initialTab: 'projects' | 'socials' | 'sections' =
-  tabParam === 'socials' ? 'socials' : tabParam === 'sections' ? 'sections' : 'projects';
+let initialTab: 'projects' | 'socials' | 'favorites' | 'sections' =
+  tabParam === 'socials'
+    ? 'socials'
+    : tabParam === 'favorites'
+      ? 'favorites'
+      : tabParam === 'sections'
+        ? 'sections'
+        : 'projects';
 if (saveSocialResult || deleteSocialResult || editSocialParam) {
   initialTab = 'socials';
+} else if (saveFavoriteResult || deleteFavoriteResult || editFavoriteParam) {
+  initialTab = 'favorites';
 } else if (saveSectionsResult) {
   initialTab = 'sections';
 }
 
-const [projectsRes, socialsRes, siteContentResult] = await Promise.all([
+const [projectsRes, socialsRes, favoritesRes, siteContentResult] = await Promise.all([
   supabase
     .from('projects')
     .select('*')
@@ -65,19 +85,37 @@ const [projectsRes, socialsRes, siteContentResult] = await Promise.all([
     .select('*')
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true }),
+  supabase
+    .from('favorite_items')
+    .select('*')
+    .order('category', { ascending: true })
+    .order('sort_order', { ascending: true })
+    .order('featured', { ascending: false })
+    .order('created_at', { ascending: false }),
   resolveSiteContent(Astro.locals),
 ]);
 
 const projects: ProjectRow[] = projectsRes.data ?? [];
 const socialLinks: SocialLinkRow[] = socialsRes.data ?? [];
+const favoriteItems: FavoriteItemRow[] = (favoritesRes.data ?? []).map((item) => ({
+  ...item,
+  cover_url: normalizeFavoriteCoverUrl(item.cover_url),
+}));
 const homeContent = siteContentResult.content;
 const siteContentMissingTable =
   siteContentResult.status === 'fallback' && siteContentResult.reason === 'missing-table';
+const favoritesMissingTable = Boolean(
+  favoritesRes.error && isMissingFavoritesTableError(favoritesRes.error.code, favoritesRes.error.message),
+);
 
 const editingProject =
   editParam && !deleteProjectResult?.data?.ok ? projects.find((p) => p.id === editParam) ?? null : null;
 const editingSocial =
   editSocialParam && !deleteSocialResult?.data?.ok ? socialLinks.find((s) => s.id === editSocialParam) ?? null : null;
+const editingFavorite =
+  editFavoriteParam && !deleteFavoriteResult?.data?.ok
+    ? favoriteItems.find((f) => f.id === editFavoriteParam) ?? null
+    : null;
 
 const saveFieldErrors = saveProjectResult?.error && isInputError(saveProjectResult.error) ? saveProjectResult.error.fields : {};
 const saveTopError =
@@ -87,9 +125,45 @@ const socialFieldErrors = saveSocialResult?.error && isInputError(saveSocialResu
 const socialTopError =
   saveSocialResult?.error && !isInputError(saveSocialResult.error) ? saveSocialResult.error.message : null;
 
+const favoriteFieldErrors =
+  saveFavoriteResult?.error && isInputError(saveFavoriteResult.error) ? saveFavoriteResult.error.fields : {};
+const favoriteTopError =
+  saveFavoriteResult?.error && !isInputError(saveFavoriteResult.error) ? saveFavoriteResult.error.message : null;
+
 const sectionsFieldErrors = saveSectionsResult?.error && isInputError(saveSectionsResult.error) ? saveSectionsResult.error.fields : {};
 const sectionsTopError =
   saveSectionsResult?.error && !isInputError(saveSectionsResult.error) ? saveSectionsResult.error.message : null;
+
+const favoriteCategoryOptions: { value: FavoriteCategory; label: string }[] = [
+  { value: 'game', label: 'Game' },
+  { value: 'movie', label: 'YouTube Channel' },
+  { value: 'music', label: 'Music' },
+];
+const favoriteCategoryLabel: Record<FavoriteCategory, string> = {
+  game: 'Game',
+  movie: 'YouTube',
+  music: 'Music',
+};
+const favoriteSectionTitle: Record<FavoriteCategory, string> = {
+  game: 'Games',
+  movie: 'YouTube Channels',
+  music: 'Music',
+};
+const favoriteGroups = (['game', 'movie', 'music'] as FavoriteCategory[])
+  .map((cat) => ({
+    category: cat,
+    label: favoriteSectionTitle[cat],
+    items: favoriteItems.filter((item) => item.category === cat),
+  }))
+  .filter((group) => group.items.length > 0);
+const initialFavCategory: FavoriteCategory =
+  editingFavorite?.category ??
+  (categoryParam === 'movie' || categoryParam === 'music' || categoryParam === 'game' ? categoryParam : 'game');
+const favSearchPlaceholderMap: Record<FavoriteCategory, string> = {
+  game: 'Search game (e.g. Silent Hill 2, Persona 5, Hollow Knight)...',
+  movie: 'Search YouTube channel (e.g. LTT, Linus Tech Tips, Fireship, MKBHD)...',
+  music: 'Search track or artist (e.g. Daft Punk, Nujabes)...',
+};
 
 let snackbarMessage: string | null = null;
 if (saveProjectResult?.data) {
@@ -100,12 +174,16 @@ if (saveProjectResult?.data) {
   snackbarMessage = `Project "${savedSlugParam}" saved.`;
 } else if (savedSocialParam) {
   snackbarMessage = `Social link "${savedSocialParam}" saved.`;
+} else if (savedFavoriteParam) {
+  snackbarMessage = `Favorite "${savedFavoriteParam}" saved.`;
 } else if (savedSectionsParam === '1') {
   snackbarMessage = 'Home page sections updated.';
 } else if (deletedParam === 'project') {
   snackbarMessage = 'Project deleted.';
 } else if (deletedParam === 'social') {
   snackbarMessage = 'Social link deleted.';
+} else if (deletedParam === 'favorite') {
+  snackbarMessage = 'Favorite entry deleted.';
 }
 ---
 
@@ -130,6 +208,7 @@ if (saveProjectResult?.data) {
       </div>
 
       <div class="flex items-center gap-2">
+        <a href="/favorites" class="btn btn-text px-4">Favorites page</a>
         <a href="/socials" class="btn btn-text px-4">Socials page</a>
         <a href="/" class="btn btn-outlined px-4">
           <span>Public site</span>
@@ -184,6 +263,18 @@ if (saveProjectResult?.data) {
           class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
         >
           Socials ({socialLinks.length})
+        </button>
+        <button
+          id="tab-favorites"
+          type="button"
+          role="tab"
+          aria-selected={initialTab === 'favorites' ? 'true' : 'false'}
+          aria-controls="panel-favorites"
+          tabindex={initialTab === 'favorites' ? 0 : -1}
+          data-tab="favorites"
+          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
+        >
+          Favorites ({favoriteItems.length})
         </button>
         <button
           id="tab-sections"
@@ -898,6 +989,503 @@ if (saveProjectResult?.data) {
             </ul>
           )
         }
+      </div>
+    </section>
+
+    <!-- Favorites Tab Panel -->
+    <section
+      id="panel-favorites"
+      role="tabpanel"
+      aria-labelledby="tab-favorites"
+      hidden={initialTab !== 'favorites'}
+      class="space-y-6"
+    >
+      {
+        favoritesMissingTable && (
+          <div role="alert" class="rounded-xl border border-error bg-error-container/30 p-5 space-y-2">
+            <div class="flex items-start gap-3">
+              <Icon name="error" class="mt-0.5 size-5 shrink-0 text-error" />
+              <div class="space-y-1">
+                <p class="text-title-md text-on-surface">Database setup needed before saving favorites</p>
+                <p class="text-body-md text-on-surface-variant">
+                  Table <code>public.favorite_items</code> does not exist in Supabase yet. Run the updated{' '}
+                  <code>supabase/schema.sql</code> in Supabase Dashboard SQL Editor, then refresh this page.
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
+        <!-- Favorite Item Editor -->
+        <div class="card-filled rounded-xl p-6 sm:p-7 space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-headline-sm text-on-surface">
+              {editingFavorite ? `Edit: ${editingFavorite.title}` : 'Add favorite item'}
+            </h2>
+            {
+              editingFavorite && (
+                <a href="/admin?tab=favorites" class="btn btn-text">
+                  Cancel edit
+                </a>
+              )
+            }
+          </div>
+
+          <form
+            method="POST"
+            action={actions.admin.saveFavorite}
+            enctype="multipart/form-data"
+            data-favorite-form
+            class="space-y-5"
+          >
+            {editingFavorite && <input type="hidden" name="id" value={editingFavorite.id} />}
+
+            <div
+              hidden={!favoriteTopError}
+              data-favorite-alert
+              role="alert"
+              class="flex items-start gap-3 rounded-lg bg-error-container p-4 text-body-md text-on-error-container"
+            >
+              <Icon name="error" class="mt-0.5 size-5" />
+              <p data-favorite-alert-text>{favoriteTopError ?? ''}</p>
+            </div>
+
+            <div class="space-y-2">
+              <label for="fav-category" class="block text-label-md text-on-surface-variant">
+                Category
+              </label>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Favorite category presets" data-fav-category-presets>
+                {
+                  favoriteCategoryOptions.map((opt) => (
+                    <button
+                      type="button"
+                      class="chip-filter"
+                      data-fav-cat-preset={opt.value}
+                      aria-pressed={initialFavCategory === opt.value ? 'true' : 'false'}
+                    >
+                      <Icon name="check" class="chip-check" />
+                      <span>{opt.label}</span>
+                    </button>
+                  ))
+                }
+              </div>
+              <input
+                id="fav-category"
+                name="category"
+                type="hidden"
+                value={initialFavCategory}
+              />
+            </div>
+
+            <div class="space-y-3 rounded-lg border border-outline-variant bg-surface-container-low p-4">
+              <div class="space-y-0.5">
+                <label for="fav-search-query" class="block text-title-sm text-on-surface">
+                  Quick search cover &amp; metadata
+                </label>
+                <p class="text-body-sm text-on-surface-variant">
+                  Search Steam, App Store, YouTube channels, or Apple Music to auto-fill title, subtitle, image, and link.
+                </p>
+              </div>
+              <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                <input
+                  id="fav-search-query"
+                  type="search"
+                  maxlength={80}
+                  placeholder={favSearchPlaceholderMap[initialFavCategory]}
+                  class="min-h-11 flex-1 rounded-xs border border-outline bg-transparent px-3.5 py-2 text-body-md text-on-surface placeholder:text-on-surface-variant/65 focus:border-primary focus:outline-2 focus:outline-primary"
+                />
+                <button type="button" class="btn btn-tonal shrink-0 px-4" data-fav-search-btn>
+                  <span>Search</span>
+                </button>
+              </div>
+              <p data-fav-search-status aria-live="polite" class="hidden text-body-sm text-on-surface-variant" />
+              <div data-fav-search-results class="hidden grid gap-2.5 sm:grid-cols-2" />
+            </div>
+
+            <div class="grid gap-5 sm:grid-cols-2">
+              <div class="field">
+                <input
+                  id="fav-title"
+                  name="title"
+                  type="text"
+                  required
+                  maxlength={120}
+                  placeholder=" "
+                  value={editingFavorite?.title ?? ''}
+                  aria-invalid={favoriteFieldErrors.title ? 'true' : undefined}
+                  aria-describedby="fav-title-error"
+                  class="field-input"
+                />
+                <label for="fav-title" class="field-label">Title</label>
+                <p id="fav-title-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-fav-error-for="title">{favoriteFieldErrors.title?.[0] ?? 'Enter a title.'}</span>
+                </p>
+              </div>
+
+              <div class="field">
+                <input
+                  id="fav-subtitle"
+                  name="subtitle"
+                  type="text"
+                  maxlength={120}
+                  placeholder=" "
+                  value={editingFavorite?.subtitle ?? ''}
+                  aria-invalid={favoriteFieldErrors.subtitle ? 'true' : undefined}
+                  aria-describedby="fav-subtitle-support fav-subtitle-error"
+                  class="field-input"
+                />
+                <label for="fav-subtitle" class="field-label">Creator / Genre (optional)</label>
+                <p id="fav-subtitle-support" class="field-support">Artist, studio, director, or year.</p>
+                <p id="fav-subtitle-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-fav-error-for="subtitle">{favoriteFieldErrors.subtitle?.[0] ?? 'Keep under 120 characters.'}</span>
+                </p>
+              </div>
+            </div>
+
+            <div class="field">
+              <textarea
+                id="fav-review"
+                name="review"
+                maxlength={600}
+                placeholder=" "
+                aria-invalid={favoriteFieldErrors.review ? 'true' : undefined}
+                aria-describedby="fav-review-support fav-review-error"
+                class="field-input min-h-24!"
+              >{editingFavorite?.review ?? ''}</textarea>
+              <label for="fav-review" class="field-label">Personal note (optional)</label>
+              <p id="fav-review-support" class="field-support">Shown inside the detail popup when clicked (max 600 chars).</p>
+              <p id="fav-review-error" class="field-error">
+                <Icon name="error" />
+                <span data-fav-error-for="review">{favoriteFieldErrors.review?.[0] ?? 'Keep under 600 characters.'}</span>
+              </p>
+            </div>
+
+            <div class="grid gap-5 sm:grid-cols-2">
+              <div class="field">
+                <input
+                  id="fav-external-url"
+                  name="external_url"
+                  type="url"
+                  maxlength={500}
+                  placeholder=" "
+                  value={editingFavorite?.external_url ?? ''}
+                  aria-invalid={favoriteFieldErrors.external_url ? 'true' : undefined}
+                  aria-describedby="fav-external-url-error"
+                  class="field-input"
+                />
+                <label for="fav-external-url" class="field-label">External link (optional)</label>
+                <p id="fav-external-url-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-fav-error-for="external_url">{favoriteFieldErrors.external_url?.[0] ?? 'Start with https://'}</span>
+                </p>
+              </div>
+
+              <div class="grid grid-cols-[1fr_auto] gap-3">
+                <div class="field">
+                  <input
+                    id="fav-accent"
+                    name="accent_color"
+                    type="text"
+                    maxlength={7}
+                    placeholder=" "
+                    value={editingFavorite?.accent_color ?? '#8c52ff'}
+                    aria-invalid={favoriteFieldErrors.accent_color ? 'true' : undefined}
+                    aria-describedby="fav-accent-error"
+                    class="field-input font-mono"
+                  />
+                  <label for="fav-accent" class="field-label">Accent hex</label>
+                  <p id="fav-accent-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-fav-error-for="accent_color">{favoriteFieldErrors.accent_color?.[0] ?? 'Use #RRGGBB.'}</span>
+                  </p>
+                </div>
+
+                <div class="field">
+                  <input
+                    id="fav-order"
+                    name="sort_order"
+                    type="number"
+                    min={-9999}
+                    max={9999}
+                    placeholder=" "
+                    value={editingFavorite?.sort_order ?? 0}
+                    aria-invalid={favoriteFieldErrors.sort_order ? 'true' : undefined}
+                    aria-describedby="fav-order-error"
+                    class="field-input w-24"
+                  />
+                  <label for="fav-order" class="field-label">Order</label>
+                  <p id="fav-order-error" class="field-error">
+                    <Icon name="error" />
+                    <span data-fav-error-for="sort_order">{favoriteFieldErrors.sort_order?.[0] ?? 'Whole number.'}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4 rounded-lg border border-outline-variant p-4">
+              <div class="space-y-2">
+                <label for="fav-cover" class="block text-title-sm text-on-surface">
+                  Cover / avatar image (max 4 MB)
+                </label>
+                <input
+                  id="fav-cover"
+                  name="cover"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                  class="block w-full text-body-sm text-on-surface-variant file:mr-4 file:min-h-11 file:rounded-full file:border-0 file:bg-secondary-container file:px-4 file:text-label-lg file:text-on-secondary-container"
+                />
+              </div>
+
+              <div class="field">
+                <input
+                  id="fav-cover-url"
+                  name="cover_url"
+                  type="url"
+                  maxlength={500}
+                  placeholder=" "
+                  value={editingFavorite?.cover_url ?? ''}
+                  aria-invalid={favoriteFieldErrors.cover_url ? 'true' : undefined}
+                  aria-describedby="fav-cover-url-support fav-cover-url-error"
+                  class="field-input"
+                />
+                <label for="fav-cover-url" class="field-label">Or paste image URL (optional)</label>
+                <p id="fav-cover-url-support" class="field-support">Uploading a file overrides the pasted URL.</p>
+                <p id="fav-cover-url-error" class="field-error">
+                  <Icon name="error" />
+                  <span data-fav-error-for="cover_url">{favoriteFieldErrors.cover_url?.[0] ?? 'Start with https://'}</span>
+                </p>
+              </div>
+
+              {
+                editingFavorite?.cover_url && (
+                  <div class="space-y-2 pt-1">
+                    <img
+                      src={editingFavorite.cover_url}
+                      alt={`${editingFavorite.title} cover`}
+                      width={editingFavorite.category === 'movie' ? 96 : 160}
+                      height={editingFavorite.category === 'movie' ? 96 : 240}
+                      referrerpolicy="no-referrer"
+                      class={
+                        editingFavorite.category === 'movie'
+                          ? 'size-24 rounded-full object-cover'
+                          : 'aspect-[2/3] w-24 rounded-sm object-cover'
+                      }
+                    />
+                    <label class="inline-flex min-h-11 items-center gap-2 text-body-sm text-error">
+                      <input type="checkbox" name="remove_cover" class="checkbox" />
+                      <span>Remove current cover image</span>
+                    </label>
+                  </div>
+                )
+              }
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
+                <input
+                  type="checkbox"
+                  name="featured"
+                  class="checkbox"
+                  checked={editingFavorite?.featured ?? false}
+                />
+                <span>Spotlight / On Repeat</span>
+              </label>
+
+              <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
+                <input
+                  type="checkbox"
+                  name="published"
+                  class="checkbox"
+                  checked={editingFavorite ? editingFavorite.published : true}
+                />
+                <span>Published</span>
+              </label>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 pt-1">
+              <button type="submit" class="btn btn-accent" data-favorite-submit>
+                <Icon name={editingFavorite ? 'edit' : 'add'} />
+                <span>{editingFavorite ? 'Save changes' : 'Add favorite'}</span>
+              </button>
+              {
+                editingFavorite && (
+                  <a href="/admin?tab=favorites" class="btn btn-outlined">
+                    Add another instead
+                  </a>
+                )
+              }
+            </div>
+          </form>
+        </div>
+
+        <!-- Existing Favorites List -->
+        <div class="space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="space-y-0.5">
+              <h2 class="text-headline-sm text-on-surface">Saved favorites</h2>
+              <p class="text-body-sm text-on-surface-variant">
+                Drag cards or use the up/down arrows to set display order on /favorites.
+              </p>
+            </div>
+            <span data-fav-reorder-status aria-live="polite" class="text-label-md text-primary" />
+          </div>
+
+          {
+            favoritesRes.error && !favoritesMissingTable ? (
+              <div role="alert" class="rounded-card border border-error bg-surface-container-low p-6 space-y-2">
+                <p class="text-title-md text-error">Could not load favorites</p>
+                <p class="text-body-md text-on-surface-variant">{favoritesRes.error.message}</p>
+              </div>
+            ) : favoriteItems.length === 0 ? (
+              <div class="card-elevated p-6 space-y-2">
+                <p class="text-title-md text-on-surface">No favorites saved yet</p>
+                <p class="text-body-md text-on-surface-variant">
+                  Add games, YouTube channels, or music on the left and they will appear on /favorites automatically.
+                </p>
+              </div>
+            ) : (
+              <div class="space-y-6">
+                {favoriteGroups.map((group) => (
+                  <div class="space-y-3">
+                    <h3 class="text-title-md text-on-surface">
+                      {group.label} ({group.items.length})
+                    </h3>
+                    <ul class="space-y-3" data-fav-sortable-list data-fav-category={group.category}>
+                      {group.items.map((item, idx) => (
+                        <li
+                          class="card-elevated space-y-4 p-4 transition-opacity sm:p-5"
+                          data-fav-item
+                          data-fav-id={item.id}
+                          data-fav-title={item.title}
+                          draggable="true"
+                        >
+                          <div class="flex items-start gap-3">
+                            <span
+                              data-fav-drag-handle
+                              aria-hidden="true"
+                              title="Drag to reorder"
+                              class="inline-flex min-h-11 min-w-8 shrink-0 cursor-grab items-center justify-center rounded-sm text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface active:cursor-grabbing"
+                            >
+                              <Icon name="drag-indicator" class="size-5" />
+                            </span>
+
+                            {item.cover_url ? (
+                              <img
+                                src={item.cover_url}
+                                alt={item.category === 'movie' ? `${item.title} avatar` : `${item.title} cover`}
+                                width={96}
+                                height={item.category === 'movie' ? 96 : 144}
+                                referrerpolicy="no-referrer"
+                                class={
+                                  item.category === 'movie'
+                                    ? 'size-12 shrink-0 rounded-full object-cover'
+                                    : 'aspect-[2/3] w-14 shrink-0 rounded-sm object-cover'
+                                }
+                              />
+                            ) : (
+                              <span
+                                aria-hidden="true"
+                                class:list={[
+                                  'inline-flex size-12 shrink-0 items-center justify-center border border-outline-variant/60',
+                                  item.category === 'movie' ? 'rounded-full' : 'rounded-md',
+                                ]}
+                                style={`background: color-mix(in srgb, ${item.accent_color || '#8c52ff'} 24%, var(--md-sys-color-surface-container-high));`}
+                              >
+                                <Icon name={item.category === 'game' ? 'joystick' : item.category === 'movie' ? 'youtube' : 'graphic-eq'} class="size-5 text-on-surface" />
+                              </span>
+                            )}
+
+                            <div class="min-w-0 flex-1 space-y-1">
+                              <div class="flex flex-wrap items-center gap-2">
+                                <span
+                                  data-fav-rank
+                                  class="rounded-xs border border-outline-variant/80 px-1.5 py-0.5 text-label-sm tabular-nums text-on-surface-variant"
+                                >
+                                  #{idx + 1}
+                                </span>
+                                <span class="text-label-md text-primary">{favoriteCategoryLabel[item.category]}</span>
+                                <span
+                                  class:list={[
+                                    'rounded-xs px-2 py-0.5 text-label-sm',
+                                    item.published
+                                      ? 'bg-primary-container text-on-primary-container'
+                                      : 'border border-outline-variant text-on-surface-variant',
+                                  ]}
+                                >
+                                  {item.published ? 'Published' : 'Draft'}
+                                </span>
+                                {item.featured && (
+                                  <span class="rounded-xs bg-secondary-container px-2 py-0.5 text-label-sm text-on-secondary-container">
+                                    Spotlight
+                                  </span>
+                                )}
+                              </div>
+                              <h4 class="text-title-lg text-on-surface">{item.title}</h4>
+                              {item.subtitle && <p class="text-body-sm text-on-surface-variant">{item.subtitle}</p>}
+                            </div>
+
+                            <div class="flex shrink-0 items-center gap-1">
+                              <button
+                                type="button"
+                                data-fav-move="up"
+                                aria-label={`Move ${item.title} up`}
+                                disabled={idx === 0}
+                                class="state-layer inline-flex size-11 items-center justify-center rounded-full border border-outline-variant/60 text-on-surface-variant transition-colors hover:border-outline hover:text-on-surface disabled:pointer-events-none disabled:opacity-35"
+                              >
+                                <Icon name="arrow-up" class="size-5" />
+                              </button>
+                              <button
+                                type="button"
+                                data-fav-move="down"
+                                aria-label={`Move ${item.title} down`}
+                                disabled={idx === group.items.length - 1}
+                                class="state-layer inline-flex size-11 items-center justify-center rounded-full border border-outline-variant/60 text-on-surface-variant transition-colors hover:border-outline hover:text-on-surface disabled:pointer-events-none disabled:opacity-35"
+                              >
+                                <Icon name="arrow-down" class="size-5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {item.review && <p class="text-body-md text-on-surface-variant">{item.review}</p>}
+
+                          <div class="flex flex-wrap items-center gap-2">
+                            <a href={`/admin?tab=favorites&editFavorite=${item.id}`} class="btn btn-tonal">
+                              <Icon name="edit" />
+                              <span>Edit</span>
+                            </a>
+                            {item.external_url && (
+                              <a href={item.external_url} target="_blank" rel="noopener noreferrer" class="btn btn-outlined">
+                                <span>Open link</span>
+                                <Icon name="open-in-new" />
+                              </a>
+                            )}
+                            <form
+                              method="POST"
+                              action={actions.admin.deleteFavorite}
+                              data-confirm-form
+                              data-confirm-title={`Delete "${item.title}"?`}
+                              data-confirm-body="This permanently removes this favorite entry and any uploaded cover image."
+                            >
+                              <input type="hidden" name="id" value={item.id} />
+                              <button type="submit" class="btn btn-danger">
+                                <Icon name="delete" />
+                                <span>Delete</span>
+                              </button>
+                            </form>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </div>
       </div>
     </section>
 
@@ -1919,6 +2507,409 @@ if (saveProjectResult?.data) {
           if (label) label.textContent = originalLabel;
         }
       }
+    });
+  }
+
+  /* ---------- Favorite Item Form ---------- */
+  const favoriteForm = document.querySelector<HTMLFormElement>('[data-favorite-form]');
+  if (favoriteForm) {
+    favoriteForm.noValidate = true;
+    const catPresetGroup = favoriteForm.querySelector<HTMLElement>('[data-fav-category-presets]');
+    const catInput = favoriteForm.elements.namedItem('category') as HTMLInputElement | null;
+    const submitBtn = favoriteForm.querySelector<HTMLButtonElement>('[data-favorite-submit]');
+    const alertBox = favoriteForm.querySelector<HTMLElement>('[data-favorite-alert]');
+    const alertText = favoriteForm.querySelector<HTMLElement>('[data-favorite-alert-text]');
+
+    const searchInput = document.getElementById('fav-search-query') as HTMLInputElement | null;
+    const searchBtn = favoriteForm.querySelector<HTMLButtonElement>('[data-fav-search-btn]');
+    const searchStatus = favoriteForm.querySelector<HTMLElement>('[data-fav-search-status]');
+    const searchResultsEl = favoriteForm.querySelector<HTMLElement>('[data-fav-search-results]');
+
+    const favSearchPlaceholders: Record<string, string> = {
+      game: 'Search game (e.g. Silent Hill 2, Persona 5, Hollow Knight)...',
+      movie: 'Search YouTube channel (e.g. LTT, Linus Tech Tips, Fireship, MKBHD)...',
+      music: 'Search track or artist (e.g. Daft Punk, Nujabes)...',
+    };
+
+    function syncFavCategoryButtons(value: string) {
+      for (const btn of catPresetGroup?.querySelectorAll<HTMLButtonElement>('[data-fav-cat-preset]') ?? []) {
+        btn.setAttribute('aria-pressed', btn.dataset.favCatPreset === value ? 'true' : 'false');
+      }
+      if (searchInput) {
+        searchInput.placeholder = favSearchPlaceholders[value] ?? favSearchPlaceholders.game;
+      }
+    }
+
+    catPresetGroup?.addEventListener('click', (e) => {
+      const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[data-fav-cat-preset]') : null;
+      const val = btn?.dataset.favCatPreset;
+      if (val && catInput) {
+        catInput.value = val;
+        syncFavCategoryButtons(val);
+      }
+    });
+
+    /* ---------- Auto-Fetch Cover / Channel & Metadata Search ---------- */
+
+    interface MediaCandidate {
+      title: string;
+      subtitle: string;
+      coverUrl: string | null;
+      externalUrl: string | null;
+      accentColor: string;
+      source: string;
+      review?: string;
+    }
+
+    function applyMediaCandidate(candidate: MediaCandidate) {
+      const titleField = favoriteForm!.elements.namedItem('title') as HTMLInputElement | null;
+      const subtitleField = favoriteForm!.elements.namedItem('subtitle') as HTMLInputElement | null;
+      const reviewField = favoriteForm!.elements.namedItem('review') as HTMLTextAreaElement | null;
+      const coverUrlField = favoriteForm!.elements.namedItem('cover_url') as HTMLInputElement | null;
+      const externalUrlField = favoriteForm!.elements.namedItem('external_url') as HTMLInputElement | null;
+      const accentField = favoriteForm!.elements.namedItem('accent_color') as HTMLInputElement | null;
+
+      if (titleField) {
+        titleField.value = candidate.title;
+        titleField.removeAttribute('aria-invalid');
+      }
+      if (subtitleField && candidate.subtitle) {
+        subtitleField.value = candidate.subtitle;
+      }
+      if (reviewField && candidate.review && !reviewField.value.trim()) {
+        reviewField.value = candidate.review;
+      }
+      if (coverUrlField && candidate.coverUrl) {
+        coverUrlField.value = candidate.coverUrl;
+        coverUrlField.removeAttribute('aria-invalid');
+      }
+      if (externalUrlField && candidate.externalUrl) {
+        externalUrlField.value = candidate.externalUrl;
+        externalUrlField.removeAttribute('aria-invalid');
+      }
+      if (accentField && candidate.accentColor) {
+        accentField.value = candidate.accentColor;
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('app:snackbar', { detail: { message: `Filled details for "${candidate.title}".` } }),
+      );
+      titleField?.focus();
+    }
+
+    async function runMediaSearch() {
+      const q = (searchInput?.value ?? '').trim();
+      const category = catInput?.value ?? 'game';
+      if (!searchStatus || !searchResultsEl) return;
+
+      if (q.length < 2) {
+        searchStatus.textContent = 'Enter at least 2 characters to search.';
+        searchStatus.classList.remove('hidden');
+        searchResultsEl.classList.add('hidden');
+        return;
+      }
+
+      if (searchBtn) searchBtn.disabled = true;
+      searchStatus.textContent =
+        category === 'movie' ? 'Searching YouTube channels...' : 'Searching covers and metadata...';
+      searchStatus.classList.remove('hidden');
+      searchResultsEl.replaceChildren();
+      searchResultsEl.classList.add('hidden');
+
+      try {
+        const res = await fetch(
+          `/api/media-search.json?category=${encodeURIComponent(category)}&q=${encodeURIComponent(q)}`,
+          { headers: { Accept: 'application/json' } },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = (await res.json()) as { results?: MediaCandidate[] };
+        const items = payload.results ?? [];
+
+        if (items.length === 0) {
+          const categoryName = category === 'movie' ? 'YouTube channels' : category;
+          searchStatus.textContent = `No results found for "${q}" in ${categoryName}. Try another query or paste details manually.`;
+          return;
+        }
+
+        searchStatus.textContent = `Found ${items.length} matches. Click one to fill the form:`;
+        for (const item of items) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className =
+            'state-layer flex min-h-14 items-center gap-3 rounded-md border border-outline-variant/60 bg-surface-container-high p-2.5 text-left transition-colors hover:border-primary';
+
+          if (item.coverUrl) {
+            const img = document.createElement('img');
+            img.src = item.coverUrl;
+            img.alt = '';
+            img.loading = 'lazy';
+            img.referrerPolicy = 'no-referrer';
+            if (category === 'movie') {
+              img.width = 44;
+              img.height = 44;
+              img.className = 'size-11 shrink-0 rounded-full object-cover bg-surface-container-lowest';
+            } else {
+              img.width = 48;
+              img.height = 72;
+              img.className = 'aspect-[2/3] w-10 shrink-0 rounded-xs object-cover bg-surface-container-lowest';
+            }
+            btn.appendChild(img);
+          }
+
+          const info = document.createElement('div');
+          info.className = 'min-w-0 flex-1 space-y-0.5';
+
+          const titleEl = document.createElement('p');
+          titleEl.className = 'truncate text-label-lg text-on-surface';
+          titleEl.textContent = item.title;
+
+          const metaEl = document.createElement('p');
+          metaEl.className = 'truncate text-body-sm text-on-surface-variant';
+          metaEl.textContent = item.subtitle ? `${item.source} · ${item.subtitle}` : item.source;
+
+          info.append(titleEl, metaEl);
+          btn.appendChild(info);
+          btn.addEventListener('click', () => applyMediaCandidate(item));
+          searchResultsEl.appendChild(btn);
+        }
+        searchResultsEl.classList.remove('hidden');
+      } catch {
+        searchStatus.textContent = 'Search failed. Check your internet connection or paste details manually.';
+      } finally {
+        if (searchBtn) searchBtn.disabled = false;
+      }
+    }
+
+    searchBtn?.addEventListener('click', runMediaSearch);
+    searchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runMediaSearch();
+      }
+    });
+
+    function clearFavoriteErrors() {
+      if (alertBox) alertBox.hidden = true;
+      for (const el of favoriteForm!.querySelectorAll<HTMLElement>('.field-input')) {
+        el.removeAttribute('aria-invalid');
+      }
+    }
+
+    function setFavoriteFieldError(name: string, message: string) {
+      const input = favoriteForm!.elements.namedItem(name) as HTMLElement | null;
+      const errSpan = favoriteForm!.querySelector<HTMLElement>(`[data-fav-error-for="${name}"]`);
+      if (input) input.setAttribute('aria-invalid', 'true');
+      if (errSpan) errSpan.textContent = message;
+    }
+
+    favoriteForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearFavoriteErrors();
+
+      const coverInput = favoriteForm.elements.namedItem('cover') as HTMLInputElement | null;
+      const file = coverInput?.files?.[0];
+      if (file && file.size > 4 * 1024 * 1024) {
+        if (alertBox && alertText) {
+          alertText.textContent = `"${file.name}" is larger than 4 MB.`;
+          alertBox.hidden = false;
+        }
+        return;
+      }
+
+      const originalLabel = submitBtn?.querySelector('span')?.textContent ?? 'Save';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        const label = submitBtn.querySelector('span');
+        if (label) label.textContent = 'Saving...';
+      }
+
+      try {
+        const { data, error } = await actions.admin.saveFavorite(new FormData(favoriteForm));
+        if (error) {
+          if (isInputError(error)) {
+            let focused = false;
+            for (const [key, messages] of Object.entries(error.fields)) {
+              const msg = messages?.[0];
+              if (msg) {
+                setFavoriteFieldError(key, msg);
+                if (!focused) {
+                  const fieldEl = favoriteForm.elements.namedItem(key);
+                  if (fieldEl instanceof HTMLElement) {
+                    fieldEl.focus();
+                    focused = true;
+                  }
+                }
+              }
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: 'Check the highlighted fields.' } }));
+          } else {
+            if (alertBox && alertText) {
+              alertText.textContent = error.message;
+              alertBox.hidden = false;
+            }
+            window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: error.message } }));
+          }
+          return;
+        }
+
+        if (data?.title) {
+          window.location.assign(`/admin?tab=favorites&savedFavorite=${encodeURIComponent(data.title)}`);
+        }
+      } catch {
+        const msg = 'Network error while saving favorite.';
+        if (alertBox && alertText) {
+          alertText.textContent = msg;
+          alertBox.hidden = false;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          const label = submitBtn.querySelector('span');
+          if (label) label.textContent = originalLabel;
+        }
+      }
+    });
+  }
+
+  /* ---------- Sortable Favorites Reordering ---------- */
+  const reorderStatusEl = document.querySelector<HTMLElement>('[data-fav-reorder-status]');
+  const sortableLists = Array.from(document.querySelectorAll<HTMLUListElement>('[data-fav-sortable-list]'));
+
+  function getListIds(list: HTMLUListElement): string[] {
+    return Array.from(list.querySelectorAll<HTMLElement>('[data-fav-item]'))
+      .map((el) => el.dataset.favId ?? '')
+      .filter(Boolean);
+  }
+
+  function syncSortableListUI(list: HTMLUListElement) {
+    const items = Array.from(list.querySelectorAll<HTMLElement>('[data-fav-item]'));
+    items.forEach((item, idx) => {
+      const rankEl = item.querySelector<HTMLElement>('[data-fav-rank]');
+      if (rankEl) rankEl.textContent = `#${idx + 1}`;
+
+      const upBtn = item.querySelector<HTMLButtonElement>('[data-fav-move="up"]');
+      const downBtn = item.querySelector<HTMLButtonElement>('[data-fav-move="down"]');
+      if (upBtn) upBtn.disabled = idx === 0;
+      if (downBtn) downBtn.disabled = idx === items.length - 1;
+    });
+  }
+
+  let reorderSaveSeq = 0;
+
+  async function persistFavoriteOrder(list: HTMLUListElement) {
+    const ids = getListIds(list);
+    if (ids.length === 0) return;
+
+    const seq = ++reorderSaveSeq;
+    if (reorderStatusEl) reorderStatusEl.textContent = 'Saving order...';
+
+    try {
+      const { error } = await actions.admin.reorderFavorites({ ids });
+      if (seq !== reorderSaveSeq) return;
+      if (error) {
+        if (reorderStatusEl) reorderStatusEl.textContent = error.message;
+        window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: error.message } }));
+        return;
+      }
+
+      if (reorderStatusEl) reorderStatusEl.textContent = 'Order saved';
+      window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: 'Order saved.' } }));
+    } catch {
+      if (seq !== reorderSaveSeq) return;
+      const msg = 'Could not save order.';
+      if (reorderStatusEl) reorderStatusEl.textContent = msg;
+      window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: msg } }));
+    }
+  }
+
+  for (const list of sortableLists) {
+    let draggingItem: HTMLElement | null = null;
+    let initialIds: string[] = [];
+
+    list.addEventListener('dragstart', (e) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest('a, button, input, textarea, select')) {
+        e.preventDefault();
+        return;
+      }
+      const item = target instanceof Element ? target.closest<HTMLElement>('[data-fav-item]') : null;
+      if (!item || !list.contains(item)) return;
+
+      draggingItem = item;
+      initialIds = getListIds(list);
+      item.classList.add('opacity-60');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.dataset.favId ?? '');
+      }
+    });
+
+    list.addEventListener('dragover', (e) => {
+      if (!draggingItem) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+
+      const overItem = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-fav-item]') : null;
+      if (!overItem || overItem === draggingItem || !list.contains(overItem)) return;
+
+      const rect = overItem.getBoundingClientRect();
+      const insertAfter = e.clientY > rect.top + rect.height / 2;
+      if (insertAfter) {
+        if (overItem.nextElementSibling !== draggingItem) {
+          list.insertBefore(draggingItem, overItem.nextElementSibling);
+          syncSortableListUI(list);
+        }
+      } else if (overItem !== draggingItem.nextElementSibling) {
+        list.insertBefore(draggingItem, overItem);
+        syncSortableListUI(list);
+      }
+    });
+
+    list.addEventListener('drop', (e) => {
+      if (!draggingItem) return;
+      e.preventDefault();
+    });
+
+    list.addEventListener('dragend', () => {
+      if (!draggingItem) return;
+      draggingItem.classList.remove('opacity-60');
+      draggingItem = null;
+      syncSortableListUI(list);
+
+      const nextIds = getListIds(list);
+      const changed =
+        initialIds.length === nextIds.length && initialIds.some((id, idx) => id !== nextIds[idx]);
+      if (changed) {
+        persistFavoriteOrder(list);
+      }
+    });
+
+    list.addEventListener('click', (e) => {
+      const moveBtn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[data-fav-move]') : null;
+      if (!moveBtn || moveBtn.disabled) return;
+
+      const item = moveBtn.closest<HTMLElement>('[data-fav-item]');
+      if (!item || !list.contains(item)) return;
+
+      const direction = moveBtn.dataset.favMove;
+      if (direction === 'up' && item.previousElementSibling instanceof HTMLElement) {
+        list.insertBefore(item, item.previousElementSibling);
+      } else if (direction === 'down' && item.nextElementSibling instanceof HTMLElement) {
+        list.insertBefore(item.nextElementSibling, item);
+      } else {
+        return;
+      }
+
+      syncSortableListUI(list);
+      if (moveBtn.disabled) {
+        const fallbackBtn = item.querySelector<HTMLButtonElement>(
+          `[data-fav-move="${direction === 'up' ? 'down' : 'up'}"]`,
+        );
+        fallbackBtn?.focus();
+      } else {
+        moveBtn.focus();
+      }
+      persistFavoriteOrder(list);
     });
   }
 

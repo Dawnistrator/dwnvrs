@@ -56,6 +56,12 @@
 
   --ease-standard: var(--md-sys-motion-easing-standard);
   --ease-emphasized: var(--md-sys-motion-easing-emphasized-decelerate);
+  --ease-spring-fast: var(--md-sys-motion-spring-fast-spatial);
+  --ease-spring-default: var(--md-sys-motion-spring-default-spatial);
+  --ease-spring-slow: var(--md-sys-motion-spring-slow-spatial);
+  --ease-effects-fast: var(--md-sys-motion-spring-fast-effects);
+  --ease-effects-default: var(--md-sys-motion-spring-default-effects);
+  --ease-effects-slow: var(--md-sys-motion-spring-slow-effects);
 
   /* M3 type scale as `text-*` utilities (size + line height + tracking + weight). */
   --text-display-lg: var(--md-sys-typescale-display-large-size);
@@ -187,7 +193,7 @@
     background: var(--state-layer-color, currentColor);
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    transition: opacity var(--md-sys-motion-spring-fast-effects-duration) var(--md-sys-motion-spring-fast-effects);
   }
 
   :is(.state-layer, .btn, .icon-btn, .chip-filter):hover::before {
@@ -206,13 +212,48 @@
     opacity: 0;
   }
 
-  /* ---------- Buttons (shape: full) ---------- */
+  /* ---------- Buttons (shape: full / 22px pill) ---------- */
   .btn {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-6 text-label-lg whitespace-nowrap select-none;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[1.375rem] px-6 text-label-lg whitespace-nowrap select-none;
     transition:
-      background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-      box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-      color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+      background-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+      border-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+      box-shadow var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+      color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects);
+  }
+
+  .nav-pill {
+    transition:
+      background-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+      color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .btn {
+      transition:
+        background-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        border-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        box-shadow var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        border-radius var(--md-sys-motion-spring-fast-spatial-duration) var(--md-sys-motion-spring-fast-spatial),
+        transform var(--md-sys-motion-spring-fast-spatial-duration) var(--md-sys-motion-spring-fast-spatial);
+    }
+
+    .btn:not(:disabled, [aria-disabled='true']):active {
+      transform: scale(0.97);
+      border-radius: var(--md-sys-shape-corner-medium);
+    }
+
+    .nav-pill {
+      transition:
+        background-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        transform var(--md-sys-motion-spring-fast-spatial-duration) var(--md-sys-motion-spring-fast-spatial);
+    }
+
+    .nav-pill:active {
+      transform: scale(0.96);
+    }
   }
 
   .btn svg {
@@ -276,7 +317,7 @@
 
   /* ---------- Chips ----------
    * Assist chips use the small (8px) corner so tags read as labels, not buttons.
-   * Filter chips are full pills because they are pressable.
+   * Filter chips use M3 Expressive shape morph: rounded-md (12px) unselected -> full pill when pressed.
    */
   .chip-assist {
     @apply inline-flex h-8 items-center gap-1.5 rounded-sm px-3 text-label-lg;
@@ -285,26 +326,73 @@
   }
 
   .chip-filter {
-    @apply inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-label-lg;
+    @apply inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md px-2 text-label-md whitespace-nowrap sm:gap-2 sm:px-4 sm:text-label-lg;
+    --chip-check-size: 0.875rem;
+    --chip-check-gap: -0.25rem;
     border: 1px solid var(--md-sys-color-outline);
     color: var(--md-sys-color-on-surface-variant);
-    transition: background-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    transition:
+      background-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+      border-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+      color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects);
+  }
+
+  @media (width >= 40rem) {
+    .chip-filter {
+      --chip-check-size: 1.125rem;
+      --chip-check-gap: -0.5rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .chip-filter {
+      transition:
+        background-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        border-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
+        border-radius var(--md-sys-motion-spring-fast-spatial-duration) var(--md-sys-motion-spring-fast-spatial),
+        transform var(--md-sys-motion-spring-fast-spatial-duration) var(--md-sys-motion-spring-fast-spatial);
+    }
+
+    .chip-filter:not(:disabled):active {
+      border-radius: var(--md-sys-shape-corner-small);
+      transform: scale(0.96);
+    }
   }
 
   .chip-filter .chip-check {
-    display: none;
-    width: 1.125rem;
-    height: 1.125rem;
+    width: 0;
+    height: var(--chip-check-size);
+    margin-right: var(--chip-check-gap);
+    opacity: 0;
+    transform: scale(0.4);
+    flex: none;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .chip-filter .chip-check {
+      transition:
+        width 220ms cubic-bezier(0.2, 0, 0, 1),
+        margin-right 220ms cubic-bezier(0.2, 0, 0, 1),
+        opacity var(--md-sys-motion-spring-fast-effects-duration) var(--md-sys-motion-spring-fast-effects),
+        transform var(--md-sys-motion-spring-fast-spatial-duration) var(--md-sys-motion-spring-fast-spatial);
+    }
   }
 
   .chip-filter[aria-pressed='true'] {
+    border-radius: 1.375rem;
     border-color: transparent;
     background: var(--md-sys-color-secondary-container);
     color: var(--md-sys-color-on-secondary-container);
   }
 
   .chip-filter[aria-pressed='true'] .chip-check {
-    display: block;
+    width: var(--chip-check-size);
+    margin-right: 0;
+    opacity: 1;
+    transform: scale(1);
   }
 
   /* ---------- Cards (shape: 24px, tonal elevation) ---------- */
@@ -349,7 +437,7 @@
     background: transparent;
     color: var(--md-sys-color-on-surface);
     border: 1px solid var(--md-sys-color-outline);
-    transition: border-color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+    transition: border-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects);
   }
 
   textarea.field-input {
@@ -390,8 +478,8 @@
     background: var(--field-bg);
     transform-origin: left top;
     transition:
-      transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
-      color var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+      transform var(--md-sys-motion-spring-fast-spatial-duration) var(--md-sys-motion-spring-fast-spatial),
+      color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects);
   }
 
   .field-input:focus + .field-label,
@@ -477,7 +565,9 @@
 
   @media (prefers-reduced-motion: no-preference) {
     .snackbar:not([hidden]) {
-      animation: snackbar-in var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-decelerate);
+      animation:
+        snackbar-spatial var(--md-sys-motion-spring-default-spatial-duration) var(--md-sys-motion-spring-default-spatial) both,
+        snackbar-effects var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects) both;
     }
   }
 
@@ -493,6 +583,62 @@
     background: color-mix(in srgb, var(--md-sys-color-scrim) 72%, transparent);
   }
 
+  @media (prefers-reduced-motion: no-preference) {
+    .m3-dialog[open] {
+      animation:
+        dialog-spatial var(--md-sys-motion-spring-default-spatial-duration) var(--md-sys-motion-spring-default-spatial) both,
+        dialog-effects var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects) both;
+    }
+
+    .m3-dialog[open]::backdrop {
+      animation: backdrop-effects var(--md-sys-motion-spring-slow-effects-duration) var(--md-sys-motion-spring-slow-effects) both;
+    }
+  }
+
+  /* ---------- Expressive Badge ---------- */
+  @media (prefers-reduced-motion: no-preference) {
+    .expressive-badge-shape {
+      transform-origin: center;
+      transition: transform var(--md-sys-motion-spring-default-spatial-duration)
+        var(--md-sys-motion-spring-default-spatial);
+    }
+
+    .expressive-badge-svg {
+      transform-origin: center;
+      animation: expressive-badge-spin 28s linear infinite;
+    }
+
+    .expressive-badge-svg[data-shape='pill-tilted'] {
+      animation-duration: 34s;
+      animation-direction: reverse;
+    }
+
+    .expressive-badge-svg[data-shape='scallop'] {
+      animation-duration: 24s;
+    }
+
+    .expressive-badge-svg[data-shape='starburst'] {
+      animation-duration: 32s;
+      animation-direction: reverse;
+    }
+
+    .expressive-badge-icon {
+      transform-origin: center;
+      transition: transform var(--md-sys-motion-spring-fast-spatial-duration)
+        var(--md-sys-motion-spring-fast-spatial);
+    }
+
+    .card-filled:hover .expressive-badge-shape,
+    .expressive-badge:hover .expressive-badge-shape {
+      transform: scale(1.14) rotate(24deg);
+    }
+
+    .card-filled:hover .expressive-badge-icon,
+    .expressive-badge:hover .expressive-badge-icon {
+      transform: scale(1.1) rotate(-8deg);
+    }
+  }
+
   /* Reserve room for the mobile M3 bottom navigation bar on public pages. */
   @media (width < 48rem) {
     body[data-bottom-nav] {
@@ -502,10 +648,43 @@
   }
 }
 
-@keyframes snackbar-in {
+@keyframes expressive-badge-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes snackbar-spatial {
+  from {
+    translate: -50% 1.25rem;
+    scale: 0.96;
+  }
+}
+
+@keyframes snackbar-effects {
   from {
     opacity: 0;
-    translate: -50% 1rem;
+  }
+}
+
+@keyframes dialog-spatial {
+  from {
+    transform: translateY(1rem) scale(0.95);
+  }
+}
+
+@keyframes dialog-effects {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes backdrop-effects {
+  from {
+    opacity: 0;
   }
 }
 

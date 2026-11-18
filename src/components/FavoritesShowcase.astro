@@ -1,0 +1,1270 @@
+---
+import type { FavoriteCategory, FavoriteItem, FavoritesResult } from '../lib/favorites';
+import type { LastFmResult } from '../lib/lastfm';
+import { monogram } from '../lib/projects';
+import type { SiteContent } from '../lib/site-content';
+import type { SocialsResult } from '../lib/socials';
+import ExpressiveBadge from './ExpressiveBadge.astro';
+import Icon from './Icon.astro';
+
+interface Props {
+  mode?: 'page' | 'section';
+  content: SiteContent;
+  favoritesResult: FavoritesResult;
+  lastFmResult: LastFmResult;
+  socialsResult: SocialsResult;
+  isAdmin?: boolean;
+}
+
+const {
+  mode = 'page',
+  content,
+  favoritesResult,
+  lastFmResult,
+  socialsResult,
+  isAdmin = false,
+} = Astro.props;
+
+const isSection = mode === 'section';
+const IntroHeadingTag = isSection ? 'h3' : 'h1';
+const SectionHeadingTag = isSection ? 'h3' : 'h2';
+const ItemHeadingTag = isSection ? 'h4' : 'h3';
+const ErrorHeadingTag = isSection ? 'h3' : 'h1';
+const DialogHeadingTag = isSection ? 'h3' : 'h2';
+
+const items = favoritesResult.status === 'error' ? [] : favoritesResult.items;
+const games = items.filter((item) => item.category === 'game');
+const movies = items.filter((item) => item.category === 'movie');
+const music = items.filter((item) => item.category === 'music');
+
+const hasCustomMusic = favoritesResult.status === 'ok' && music.some((item) => !item.isSample);
+const lastFmRecentTracks = lastFmResult.status === 'ok' ? lastFmResult.recentTracks : [];
+const useAutoLastFmList = !hasCustomMusic && lastFmResult.status === 'ok';
+const effectiveMusicCount = useAutoLastFmList ? 1 + lastFmRecentTracks.length : music.length;
+
+const spotlightMusic = useAutoLastFmList ? null : music.find((item) => item.featured) ?? music[0] ?? null;
+const tracklistMusic = useAutoLastFmList
+  ? []
+  : spotlightMusic
+    ? music.filter((item) => item.id !== spotlightMusic.id)
+    : [];
+
+const socialList = socialsResult.status === 'ok' ? socialsResult.socials : [];
+function findSocialByKeywords(keywords: string[]) {
+  return (
+    socialList.find((s) =>
+      keywords.some((kw) => s.platform.toLowerCase().includes(kw) || s.url.toLowerCase().includes(kw)),
+    ) ?? null
+  );
+}
+
+const youtubeSocial = findSocialByKeywords(['youtube']);
+const gameSocial = findSocialByKeywords(['steam', 'backloggd', 'playstation', 'xbox', 'epic', 'hoyolab']);
+const musicSocial = findSocialByKeywords(['last.fm', 'spotify', 'soundcloud', 'apple music']);
+const lastFmProfileUrl =
+  lastFmResult.status === 'ok'
+    ? lastFmResult.track.profileUrl
+    : lastFmResult.status === 'empty'
+      ? lastFmResult.profileUrl
+      : musicSocial?.url ?? 'https://www.last.fm';
+
+const categoryLabel: Record<FavoriteCategory, string> = {
+  game: 'Game',
+  movie: 'YouTube',
+  music: 'Music',
+};
+
+const filterOptions: { id: 'all' | FavoriteCategory; label: string; count: number }[] = [
+  { id: 'all', label: 'All', count: games.length + movies.length + effectiveMusicCount },
+  { id: 'game', label: 'Games', count: games.length },
+  { id: 'movie', label: 'YouTube', count: movies.length },
+  { id: 'music', label: 'Music', count: effectiveMusicCount },
+];
+
+function posterDataAttrs(item: FavoriteItem) {
+  return {
+    'data-fav-trigger': 'true',
+    'data-title': item.title,
+    'data-subtitle': item.subtitle,
+    'data-review': item.review,
+    'data-category': categoryLabel[item.category],
+    'data-cover': item.cover_url ?? '',
+    'data-url': item.external_url ?? '',
+    'data-accent': item.accent_color || '#8c52ff',
+    'data-sample': item.isSample ? 'true' : 'false',
+  };
+}
+---
+
+<div class="space-y-8" data-favorites-root>
+  {
+    favoritesResult.status === 'fallback' && (
+      <div
+        role="note"
+        class="flex flex-col gap-3 rounded-lg border border-outline-variant bg-surface-container-low p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+      >
+        <p class="text-body-md text-on-surface-variant">
+          {favoritesResult.reason === 'not-configured'
+            ? 'Supabase is not connected yet. Showing sample placeholders for games, YouTube channels, and music.'
+            : favoritesResult.reason === 'missing-table'
+              ? 'Table public.favorite_items has not been created in Supabase yet. Showing sample placeholders until schema.sql is applied.'
+              : 'No published favorites yet. Showing sample placeholders until you add your own games, YouTube channels, and music.'}
+        </p>
+        {isAdmin && (
+          <a href="/admin?tab=favorites" class="btn btn-text self-start sm:self-center">
+            Open admin
+          </a>
+        )}
+      </div>
+    )
+  }
+
+  {
+    favoritesResult.status === 'error' ? (
+      <section role="alert" class="rounded-card border border-error bg-surface-container-low p-6 space-y-3">
+        <div class="flex items-center gap-2 text-title-md text-error">
+          <Icon name="error" class="size-5" />
+          <ErrorHeadingTag>Could not load favorites</ErrorHeadingTag>
+        </div>
+        <p class="text-body-md text-on-surface-variant">
+          Supabase returned an error ({favoritesResult.message}). Refresh the page or check your database tables.
+        </p>
+        <div>
+          <a href={isSection ? '/#favorites' : '/favorites'} class="btn btn-outlined">
+            Try again
+          </a>
+        </div>
+      </section>
+    ) : (
+      <>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-2 sm:overflow-visible" role="group" aria-label="Filter favorites by category" data-fav-filters>
+            {filterOptions.map((option) => (
+              <button
+                type="button"
+                class="chip-filter"
+                data-fav-filter={option.id}
+                aria-pressed={option.id === 'all' ? 'true' : 'false'}
+              >
+                <Icon name="check" class="chip-check" />
+                <span>{option.label}</span>
+                <span class="tabular-nums text-[11px] opacity-75 sm:text-label-md">({option.count})</span>
+              </button>
+            ))}
+          </div>
+          <p class="text-body-sm text-on-surface-variant" aria-live="polite" data-fav-live>
+            Showing {games.length + movies.length + effectiveMusicCount} curated items across games, YouTube channels, and music.
+          </p>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2" data-fav-columns>
+          <!-- Left Column: Intro + YouTube Channels -->
+          <div class="flex min-w-0 flex-col gap-6">
+            <section
+              aria-labelledby="favorites-intro-heading"
+              data-fav-intro
+              class="card-filled relative overflow-hidden rounded-xl p-5 sm:p-7 space-y-5"
+              style="background: radial-gradient(at 115% 115%, color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent) 0%, var(--md-sys-color-surface-container) 70%);"
+            >
+              <ExpressiveBadge shape="clover" tone="primary" icon="bookmark" />
+
+              <div class="space-y-3">
+                <p class="text-label-lg text-primary">
+                  {content.brand} · {content.owner}
+                </p>
+                <IntroHeadingTag id="favorites-intro-heading" class="text-display-sm text-on-surface text-balance">
+                  Off the clock
+                </IntroHeadingTag>
+                <ul class="list-disc space-y-1.5 pl-5 text-body-lg text-on-surface-variant text-pretty">
+                  <li>video games that hooked me for dozens of hours</li>
+                  <li>YouTube channels and tech creators on my daily watch list</li>
+                  <li>albums and tracks on rotation while writing code</li>
+                </ul>
+              </div>
+
+              <div class="flex flex-wrap gap-2 pt-1">
+                <span class="chip-assist tabular-nums">{games.length} Games</span>
+                <span class="chip-assist tabular-nums">{movies.length} Channels</span>
+                <span class="chip-assist tabular-nums">{effectiveMusicCount} Tracks</span>
+              </div>
+            </section>
+
+            <section
+              aria-labelledby="channels-heading"
+              data-fav-section="movie"
+              class="card-filled flex flex-1 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
+            >
+              <div class="space-y-5">
+                <ExpressiveBadge shape="pill-tilted" tone="secondary" icon="youtube" />
+
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <SectionHeadingTag id="channels-heading" class="text-headline-sm text-on-surface text-balance">
+                      What I'm watching
+                    </SectionHeadingTag>
+                    <span class="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-outline-variant/70 px-2 py-0.5 text-label-sm text-on-surface-variant">
+                      <Icon name="youtube" class="size-3.5 text-primary" />
+                      <span>YouTube</span>
+                    </span>
+                  </div>
+                  <p class="text-body-md text-on-surface-variant text-pretty">
+                    Channels and creators I watch regularly. Select any channel for notes and a direct link.
+                  </p>
+                </div>
+
+                {movies.length === 0 ? (
+                  <div class="rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant">
+                    No YouTube channels published yet.
+                  </div>
+                ) : (
+                  <div class="flex flex-col gap-2">
+                    {movies.map((channel) => (
+                      <button
+                        type="button"
+                        aria-label={`View details for ${channel.title}`}
+                        class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-lg border border-outline-variant/40 bg-surface-container-low px-3.5 py-2.5 text-left transition-colors duration-200 ease-effects-default hover:border-outline hover:bg-surface-container-high motion-safe:transition-[background-color,border-color,transform] motion-safe:active:scale-[0.99] focus-visible:outline-3 focus-visible:outline-primary sm:px-4 sm:py-3"
+                        style={`--poster-accent: ${channel.accent_color || '#ef4444'};`}
+                        {...posterDataAttrs(channel)}
+                      >
+                        <div class="relative size-12 shrink-0 overflow-hidden rounded-full border border-outline-variant/50 bg-surface-container-high">
+                          {channel.cover_url ? (
+                            <img
+                              src={channel.cover_url}
+                              alt={`${channel.title} avatar`}
+                              width={96}
+                              height={96}
+                              loading="lazy"
+                              referrerpolicy="no-referrer"
+                              class="h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-[350ms] motion-safe:ease-spring-fast motion-safe:group-hover:scale-[1.06]"
+                            />
+                          ) : (
+                            <div
+                              aria-hidden="true"
+                              class="flex h-full w-full items-center justify-center text-title-sm font-bold text-on-surface"
+                              style="background: color-mix(in srgb, var(--poster-accent) 26%, var(--md-sys-color-surface-container-high));"
+                            >
+                              {monogram(channel.title)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div class="min-w-0 flex-1 space-y-0.5">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <ItemHeadingTag class="truncate text-title-md text-on-surface group-hover:text-primary">
+                              {channel.title}
+                            </ItemHeadingTag>
+                            {channel.featured && !channel.isSample && (
+                              <span class="shrink-0 rounded-xs bg-primary-container px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-primary-container">
+                                Pinned
+                              </span>
+                            )}
+                            {channel.isSample && (
+                              <span class="shrink-0 rounded-xs border border-outline-variant/80 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
+                                Sample
+                              </span>
+                            )}
+                          </div>
+                          {channel.subtitle && (
+                            <p class="truncate text-body-sm text-primary">{channel.subtitle}</p>
+                          )}
+                          {channel.review && (
+                            <p class="line-clamp-1 text-body-sm text-on-surface-variant">{channel.review}</p>
+                          )}
+                        </div>
+
+                        <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors duration-200 ease-effects-default group-hover:text-on-surface">
+                          <Icon name="open-in-new" class="size-4.5" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {
+                (youtubeSocial || isAdmin) && (
+                  <div class="mt-auto flex flex-wrap items-center justify-end gap-2 pt-1">
+                    {youtubeSocial && (
+                      <a
+                        href={youtubeSocial.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-tonal"
+                      >
+                        <span>{youtubeSocial.platform}</span>
+                        <Icon name="open-in-new" />
+                        <span class="sr-only">(opens in a new tab)</span>
+                      </a>
+                    )}
+                    {isAdmin && (
+                      <a href="/admin?tab=favorites&category=movie" class="btn btn-outlined">
+                        <Icon name="add" />
+                        <span>Add channel</span>
+                      </a>
+                    )}
+                  </div>
+                )
+              }
+            </section>
+          </div>
+
+          <!-- Right Column: Music + Games -->
+          <div class="flex min-w-0 flex-col gap-6">
+            <section
+              aria-labelledby="music-heading"
+              data-fav-section="music"
+              class="card-filled rounded-xl p-5 sm:p-7 space-y-5"
+            >
+              <ExpressiveBadge shape="scallop" tone="secondary" icon="graphic-eq" />
+
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between gap-2">
+                  <SectionHeadingTag id="music-heading" class="text-headline-sm text-on-surface text-balance">
+                    What I'm listening to
+                  </SectionHeadingTag>
+                  <span class="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-outline-variant/70 px-2 py-0.5 text-label-sm text-on-surface-variant">
+                    <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" class="size-3.5 text-primary">
+                      <path d="M14.131 22.948l-1.172-3.193c0 0-1.912 2.131-4.771 2.131-2.537 0-4.333-2.203-4.333-5.729 0-4.511 2.276-6.125 4.515-6.125 3.224 0 4.245 2.089 5.125 4.772l1.161 3.667c1.161 3.561 3.365 6.421 9.713 6.421 4.548 0 7.631-1.391 7.631-5.068 0-2.968-1.697-4.511-4.844-5.244l-2.344-0.511c-1.624-0.371-2.104-1.032-2.104-2.131 0-1.249 0.985-1.984 2.604-1.984 1.767 0 2.704 0.661 2.865 2.24l3.661-0.444c-0.297-3.301-2.584-4.656-6.323-4.656-3.308 0-6.532 1.251-6.532 5.245 0 2.5 1.204 4.077 4.245 4.807l2.484 0.589c1.865 0.443 2.484 1.224 2.484 2.287 0 1.359-1.323 1.921-3.828 1.921-3.703 0-5.244-1.943-6.124-4.625l-1.204-3.667c-1.541-4.765-4.005-6.531-8.891-6.531-5.287-0.016-8.151 3.385-8.151 9.192 0 5.573 2.864 8.595 8.005 8.595 4.14 0 6.125-1.943 6.125-1.943z" />
+                    </svg>
+                    <span>Last.fm</span>
+                  </span>
+                </div>
+                <p class="text-body-md text-on-surface-variant text-pretty">
+                  Live scrobble stream and tracks on rotation.
+                </p>
+              </div>
+
+              <!-- Live Last.fm Widget -->
+              <div data-lfm-widget data-lfm-status-kind={lastFmResult.status} class="space-y-3">
+                <div
+                  data-lfm-live-card
+                  hidden={lastFmResult.status !== 'ok'}
+                  class="rounded-lg border p-4 transition-colors duration-300 ease-effects-slow"
+                  style="--lfm-accent: #8c52ff; background: color-mix(in srgb, var(--lfm-accent) 18%, var(--md-sys-color-surface-container-high)); border-color: color-mix(in srgb, var(--lfm-accent) 40%, var(--md-sys-color-outline-variant));"
+                >
+                  <a
+                    data-lfm-link
+                    href={lastFmResult.status === 'ok' ? lastFmResult.track.url : 'https://www.last.fm'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="group flex items-center gap-4 rounded-sm focus-visible:outline-3 focus-visible:outline-primary"
+                  >
+                    <div class="relative size-20 shrink-0 overflow-hidden rounded-md bg-surface-container-lowest">
+                      <img
+                        data-lfm-cover
+                        crossorigin="anonymous"
+                        src={lastFmResult.status === 'ok' && lastFmResult.track.coverUrl ? lastFmResult.track.coverUrl : ''}
+                        alt={
+                          lastFmResult.status === 'ok'
+                            ? `${lastFmResult.track.title} album cover`
+                            : 'Album cover'
+                        }
+                        width={160}
+                        height={160}
+                        loading="lazy"
+                        class:list={[
+                          'h-full w-full object-cover',
+                          !(lastFmResult.status === 'ok' && lastFmResult.track.coverUrl) && 'hidden',
+                        ]}
+                      />
+                      <div
+                        data-lfm-monogram
+                        aria-hidden="true"
+                        class:list={[
+                          'flex h-full w-full items-center justify-center bg-primary-container text-title-lg font-bold text-on-primary-container',
+                          lastFmResult.status === 'ok' && lastFmResult.track.coverUrl && 'hidden',
+                        ]}
+                      >
+                        {lastFmResult.status === 'ok' ? monogram(lastFmResult.track.title) : 'FM'}
+                      </div>
+                    </div>
+
+                    <div class="min-w-0 flex-1 space-y-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span
+                          data-lfm-eq
+                          data-playing={lastFmResult.status === 'ok' && lastFmResult.track.nowPlaying ? 'true' : 'false'}
+                          class="eq-bars"
+                          aria-hidden="true"
+                        >
+                          <span />
+                          <span />
+                          <span />
+                        </span>
+                        <span data-lfm-status class="text-label-sm text-primary">
+                          {lastFmResult.status === 'ok' ? lastFmResult.track.relativeTime : 'Last.fm'}
+                        </span>
+                        <span
+                          data-lfm-user
+                          class="rounded-xs border border-outline-variant px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant"
+                        >
+                          @{lastFmResult.status === 'ok' ? lastFmResult.track.username : ''}
+                        </span>
+                      </div>
+                      <ItemHeadingTag data-lfm-title class="truncate text-title-lg text-on-surface group-hover:text-primary">
+                        {lastFmResult.status === 'ok' ? lastFmResult.track.title : 'Recent track'}
+                      </ItemHeadingTag>
+                      <p data-lfm-subtitle class="truncate text-body-sm text-on-surface-variant">
+                        {lastFmResult.status === 'ok'
+                          ? lastFmResult.track.album
+                            ? `${lastFmResult.track.artist} · ${lastFmResult.track.album}`
+                            : lastFmResult.track.artist
+                          : ''}
+                      </p>
+                    </div>
+
+                    <span class="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant">
+                      <Icon name="open-in-new" class="size-5" />
+                    </span>
+                    <span class="sr-only">(opens Last.fm track page in a new tab)</span>
+                  </a>
+                </div>
+
+                <div
+                  data-lfm-empty
+                  hidden={lastFmResult.status !== 'empty'}
+                  class="rounded-lg border border-outline-variant/50 bg-surface-container-low p-4 text-body-sm text-on-surface-variant"
+                >
+                  {lastFmResult.status === 'empty'
+                    ? `Connected to Last.fm (@${lastFmResult.username}), but no recent scrobbles were found yet.`
+                    : 'No recent Last.fm scrobbles found yet.'}
+                </div>
+
+                <div
+                  data-lfm-error
+                  role="alert"
+                  hidden={lastFmResult.status !== 'error'}
+                  class="flex flex-col gap-3 rounded-lg border border-error/70 bg-surface-container-low p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div class="space-y-0.5">
+                    <p class="text-label-lg text-error">Unable to load Last.fm activity</p>
+                    <p data-lfm-error-text class="text-body-sm text-on-surface-variant">
+                      {lastFmResult.status === 'error' ? lastFmResult.message : 'Check your Last.fm connection.'}
+                    </p>
+                  </div>
+                  <button type="button" class="btn btn-outlined shrink-0" data-lfm-retry>
+                    Retry
+                  </button>
+                </div>
+              </div>
+
+              {music.length === 0 && lastFmRecentTracks.length === 0 && lastFmResult.status !== 'ok' ? (
+                <div class="rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant">
+                  No music tracks or albums published yet.
+                </div>
+              ) : (
+                <div class="space-y-3">
+                  {lastFmRecentTracks.length > 0 && (
+                    <div data-lfm-recent-list class="flex flex-col gap-0.5 overflow-hidden rounded-lg">
+                      {lastFmRecentTracks.map((recent) => (
+                        <button
+                          type="button"
+                          aria-label={`View details for ${recent.title}`}
+                          class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-xs bg-surface-container-low px-3.5 py-3 text-left transition-colors duration-200 ease-effects-default hover:bg-surface-container-high"
+                          data-fav-trigger="true"
+                          data-title={recent.title}
+                          data-subtitle={recent.album ? `${recent.artist} · ${recent.album}` : recent.artist}
+                          data-review={`Scrobbled via Last.fm (@${recent.username}) · ${recent.relativeTime}.`}
+                          data-category="Recent scrobble"
+                          data-cover={recent.coverUrl ?? ''}
+                          data-url={recent.url}
+                          data-accent="#8c52ff"
+                          data-sample="false"
+                        >
+                          <div class="size-11 shrink-0 overflow-hidden rounded-sm bg-surface-container-high">
+                            <img
+                              data-recent-cover
+                              src={recent.coverUrl ?? ''}
+                              alt={`${recent.title} cover art`}
+                              width={88}
+                              height={88}
+                              loading="lazy"
+                              class:list={['h-full w-full object-cover', !recent.coverUrl && 'hidden']}
+                            />
+                            <div
+                              data-recent-monogram
+                              aria-hidden="true"
+                              class:list={[
+                                'flex h-full w-full items-center justify-center bg-secondary-container text-label-lg font-bold text-on-secondary-container',
+                                recent.coverUrl && 'hidden',
+                              ]}
+                            >
+                              {monogram(recent.title)}
+                            </div>
+                          </div>
+
+                          <div class="min-w-0 flex-1 space-y-0.5">
+                            <div class="flex items-center justify-between gap-2">
+                              <span class="truncate text-title-md text-on-surface group-hover:text-primary">
+                                {recent.title}
+                              </span>
+                              <span class="shrink-0 text-label-sm tabular-nums text-on-surface-variant">
+                                {recent.relativeTime}
+                              </span>
+                            </div>
+                            <p class="truncate text-body-sm text-on-surface-variant">
+                              {recent.album ? `${recent.artist} · ${recent.album}` : recent.artist}
+                            </p>
+                          </div>
+
+                          <span class="inline-flex size-9 shrink-0 items-center justify-center text-on-surface-variant">
+                            <Icon name="open-in-new" class="size-4.5" />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {spotlightMusic && (
+                    <button
+                      type="button"
+                      aria-label={`View details for ${spotlightMusic.title}`}
+                      class="state-layer group flex w-full items-center gap-4 rounded-lg border border-outline-variant/40 p-4 text-left transition-colors duration-200 ease-effects-default hover:border-outline"
+                      style={`background: color-mix(in srgb, ${spotlightMusic.accent_color || '#8c52ff'} 16%, var(--md-sys-color-surface-container-high));`}
+                      {...posterDataAttrs(spotlightMusic)}
+                    >
+                      <div class="relative size-20 shrink-0 overflow-hidden rounded-md bg-surface-container-lowest">
+                        {spotlightMusic.cover_url ? (
+                          <img
+                            src={spotlightMusic.cover_url}
+                            alt={`${spotlightMusic.title} cover art`}
+                            width={160}
+                            height={160}
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                            class="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div
+                            class="flex h-full w-full items-center justify-center text-title-lg font-bold text-on-surface"
+                            style={`background: color-mix(in srgb, ${spotlightMusic.accent_color || '#8c52ff'} 32%, var(--md-sys-color-surface-container));`}
+                          >
+                            {monogram(spotlightMusic.title)}
+                          </div>
+                        )}
+                      </div>
+
+                      <div class="min-w-0 flex-1 space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="eq-bars" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                          <span class="text-label-sm text-primary">On repeat</span>
+                          {spotlightMusic.isSample && (
+                            <span class="rounded-xs border border-outline-variant px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
+                              Sample
+                            </span>
+                          )}
+                        </div>
+                        <ItemHeadingTag class="truncate text-title-lg text-on-surface group-hover:text-primary">
+                          {spotlightMusic.title}
+                        </ItemHeadingTag>
+                        {spotlightMusic.subtitle && (
+                          <p class="truncate text-body-sm text-on-surface-variant">{spotlightMusic.subtitle}</p>
+                        )}
+                      </div>
+
+                      <span class="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant">
+                        <Icon name="open-in-new" class="size-5" />
+                      </span>
+                    </button>
+                  )}
+
+                  {tracklistMusic.length > 0 && (
+                    <div class="flex flex-col gap-0.5 overflow-hidden rounded-lg">
+                      {tracklistMusic.map((track) => (
+                        <button
+                          type="button"
+                          aria-label={`View details for ${track.title}`}
+                          class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-xs bg-surface-container-low px-3.5 py-3 text-left transition-colors duration-200 ease-effects-default hover:bg-surface-container-high"
+                          {...posterDataAttrs(track)}
+                        >
+                          <div class="size-11 shrink-0 overflow-hidden rounded-sm bg-surface-container-high">
+                            {track.cover_url ? (
+                              <img
+                                src={track.cover_url}
+                                alt={`${track.title} cover art`}
+                                width={88}
+                                height={88}
+                                loading="lazy"
+                                referrerpolicy="no-referrer"
+                                class="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                class="flex h-full w-full items-center justify-center text-label-lg font-bold text-on-surface"
+                                style={`background: color-mix(in srgb, ${track.accent_color || '#8c52ff'} 26%, var(--md-sys-color-surface-container-high));`}
+                              >
+                                {monogram(track.title)}
+                              </div>
+                            )}
+                          </div>
+
+                          <div class="min-w-0 flex-1 space-y-0.5">
+                            <div class="flex items-center gap-2">
+                              <span class="truncate text-title-md text-on-surface group-hover:text-primary">
+                                {track.title}
+                              </span>
+                              {track.isSample && (
+                                <span class="shrink-0 rounded-xs border border-outline-variant px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
+                                  Sample
+                                </span>
+                              )}
+                            </div>
+                            {track.subtitle && (
+                              <p class="truncate text-body-sm text-on-surface-variant">{track.subtitle}</p>
+                            )}
+                          </div>
+
+                          <span class="inline-flex size-9 shrink-0 items-center justify-center text-on-surface-variant">
+                            <Icon name="open-in-new" class="size-4.5" />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div
+                    data-lfm-setup
+                    hidden={lastFmResult.status !== 'not-configured'}
+                    class="flex flex-col gap-3 rounded-lg border border-outline-variant/60 bg-surface-container-low p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <p class="text-body-sm text-on-surface-variant text-pretty">
+                      Last.fm live scrobbling is ready: add <code>LASTFM_USERNAME</code> and{' '}
+                      <code>LASTFM_API_KEY</code> in <code>.env</code> to stream real-time playback.
+                    </p>
+                    <button type="button" class="btn btn-outlined min-h-11 shrink-0 px-4" data-lfm-retry>
+                      Check connection
+                    </button>
+                  </div>
+                  <p data-lfm-status-msg class="sr-only" aria-live="polite" />
+                </div>
+              )}
+
+              <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+                <a
+                  href={lastFmProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-tonal"
+                >
+                  <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" class="size-4.5">
+                    <path d="M14.131 22.948l-1.172-3.193c0 0-1.912 2.131-4.771 2.131-2.537 0-4.333-2.203-4.333-5.729 0-4.511 2.276-6.125 4.515-6.125 3.224 0 4.245 2.089 5.125 4.772l1.161 3.667c1.161 3.561 3.365 6.421 9.713 6.421 4.548 0 7.631-1.391 7.631-5.068 0-2.968-1.697-4.511-4.844-5.244l-2.344-0.511c-1.624-0.371-2.104-1.032-2.104-2.131 0-1.249 0.985-1.984 2.604-1.984 1.767 0 2.704 0.661 2.865 2.24l3.661-0.444c-0.297-3.301-2.584-4.656-6.323-4.656-3.308 0-6.532 1.251-6.532 5.245 0 2.5 1.204 4.077 4.245 4.807l2.484 0.589c1.865 0.443 2.484 1.224 2.484 2.287 0 1.359-1.323 1.921-3.828 1.921-3.703 0-5.244-1.943-6.124-4.625l-1.204-3.667c-1.541-4.765-4.005-6.531-8.891-6.531-5.287-0.016-8.151 3.385-8.151 9.192 0 5.573 2.864 8.595 8.005 8.595 4.14 0 6.125-1.943 6.125-1.943z" />
+                  </svg>
+                  <span>Last.fm</span>
+                  <span class="sr-only">(opens in a new tab)</span>
+                </a>
+              </div>
+            </section>
+
+            <section
+              aria-labelledby="games-heading"
+              data-fav-section="game"
+              class="card-filled flex flex-1 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
+            >
+              <div class="space-y-5">
+                <ExpressiveBadge shape="starburst" tone="primary" icon="joystick" />
+
+                <div class="space-y-1.5">
+                  <SectionHeadingTag id="games-heading" class="text-headline-sm text-on-surface text-balance">
+                    What I like to play
+                  </SectionHeadingTag>
+                  <p class="text-body-md text-on-surface-variant text-pretty">
+                    Click any cover art for notes and links.
+                  </p>
+                </div>
+
+                {games.length === 0 ? (
+                  <div class="rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant">
+                    No favorite games published yet.
+                  </div>
+                ) : (
+                  <div class="grid grid-cols-3 gap-3 sm:grid-cols-5 sm:gap-3.5">
+                    {games.map((game) => (
+                      <button
+                        type="button"
+                        aria-label={`View details for ${game.title}`}
+                        class="group state-layer relative aspect-[2/3] w-full overflow-hidden rounded-sm bg-surface-container-high text-left motion-safe:transition-transform motion-safe:duration-[350ms] motion-safe:ease-spring-fast motion-safe:hover:-translate-y-1 focus-visible:outline-3 focus-visible:outline-primary after:pointer-events-none after:absolute after:inset-0 after:rounded-sm after:border after:border-outline-variant/40"
+                        style={`--poster-accent: ${game.accent_color || '#8c52ff'};`}
+                        {...posterDataAttrs(game)}
+                      >
+                        {game.cover_url ? (
+                          <img
+                            src={game.cover_url}
+                            alt={`${game.title} cover art`}
+                            width={300}
+                            height={450}
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                            class="h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-[350ms] motion-safe:ease-spring-fast motion-safe:group-hover:scale-[1.04]"
+                          />
+                        ) : (
+                          <div
+                            class="flex h-full w-full flex-col justify-between p-2.5 sm:p-3"
+                            style="background: linear-gradient(155deg, color-mix(in srgb, var(--poster-accent) 26%, var(--md-sys-color-surface-container-high)) 0%, var(--md-sys-color-surface-container-low) 100%);"
+                          >
+                            <div class="flex items-start justify-between gap-1">
+                              <span class="text-label-sm font-bold text-on-surface/80">{monogram(game.title)}</span>
+                              {game.isSample && (
+                                <span class="rounded-xs border border-outline-variant/80 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
+                                  Sample
+                                </span>
+                              )}
+                            </div>
+                            <div class="space-y-0.5">
+                              <p class="line-clamp-2 text-label-md text-on-surface">{game.title}</p>
+                              {game.subtitle && (
+                                <p class="line-clamp-1 text-[11px] text-on-surface-variant">{game.subtitle}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {game.cover_url && (
+                          <div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-2 opacity-90 transition-opacity duration-200 ease-effects-default group-hover:opacity-100">
+                            <p class="line-clamp-2 text-label-sm text-white">{game.title}</p>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {
+                (gameSocial || isAdmin) && (
+                  <div class="mt-auto flex flex-wrap items-center justify-end gap-2 pt-1">
+                    {gameSocial && (
+                      <a
+                        href={gameSocial.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-tonal"
+                      >
+                        <span>{gameSocial.platform}</span>
+                        <Icon name="open-in-new" />
+                        <span class="sr-only">(opens in a new tab)</span>
+                      </a>
+                    )}
+                    {isAdmin && (
+                      <a href="/admin?tab=favorites" class="btn btn-outlined">
+                        <Icon name="add" />
+                        <span>Add game</span>
+                      </a>
+                    )}
+                  </div>
+                )
+              }
+            </section>
+          </div>
+        </div>
+      </>
+    )
+  }
+</div>
+
+<!-- Rich Detail Dialog (inspired by bignut.zip gm3-rich-tooltip) -->
+<dialog
+  id="favorite-detail-dialog"
+  class="m3-dialog w-[min(100%-2rem,32rem)]"
+  aria-labelledby="fav-dialog-title"
+  aria-describedby="fav-dialog-review"
+>
+  <div class="space-y-5">
+    <div
+      data-dialog-fav-banner
+      class="relative flex h-24 items-end gap-4 overflow-hidden rounded-lg border border-outline-variant/40 p-3.5"
+      style="background: linear-gradient(125deg, color-mix(in srgb, #8c52ff 32%, var(--md-sys-color-surface-container)) 0%, var(--md-sys-color-surface-container-low) 100%);"
+    >
+      <img
+        data-dialog-fav-cover
+        src=""
+        alt=""
+        width={96}
+        height={96}
+        referrerpolicy="no-referrer"
+        class="hidden size-16 shrink-0 rounded-sm border border-outline-variant/50 object-cover"
+      />
+      <div
+        data-dialog-fav-monogram
+        aria-hidden="true"
+        class="flex size-16 shrink-0 items-center justify-center rounded-sm border border-outline-variant/50 bg-surface-container-highest text-title-lg font-bold text-on-surface"
+      >
+        DA
+      </div>
+      <div class="min-w-0 flex-1 space-y-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <span
+            data-dialog-fav-category
+            class="rounded-xs bg-primary-container px-2 py-0.5 text-label-sm text-on-primary-container"
+          >
+            Game
+          </span>
+          <span
+            data-dialog-fav-sample
+            hidden
+            class="rounded-xs border border-outline-variant px-2 py-0.5 text-label-sm text-on-surface-variant"
+          >
+            Sample entry
+          </span>
+        </div>
+        <p data-dialog-fav-subtitle class="truncate text-body-sm text-on-surface-variant"></p>
+      </div>
+    </div>
+
+    <div class="space-y-2">
+      <DialogHeadingTag id="fav-dialog-title" data-dialog-fav-title class="text-headline-sm text-on-surface text-balance">
+        Favorite title
+      </DialogHeadingTag>
+      <p id="fav-dialog-review" data-dialog-fav-review class="text-body-md leading-relaxed text-on-surface-variant text-pretty">
+        Notes about this pick.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+      <a
+        data-dialog-fav-link
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+        hidden
+        class="btn btn-tonal"
+      >
+        <span data-dialog-fav-link-label>Open link</span>
+        <Icon name="open-in-new" />
+        <span class="sr-only">(opens in a new tab)</span>
+      </a>
+      <button type="button" class="btn btn-text" data-dialog-fav-close>Close</button>
+    </div>
+  </div>
+</dialog>
+
+<style>
+  .eq-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+  }
+
+  .eq-bars > span {
+    width: 3px;
+    border-radius: 9999px;
+    background: var(--md-sys-color-primary);
+    height: 60%;
+  }
+
+  .eq-bars > span:nth-child(2) {
+    height: 100%;
+  }
+
+  .eq-bars > span:nth-child(3) {
+    height: 45%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .eq-bars:not([data-playing='false']) > span {
+      transform-origin: bottom center;
+      animation: eq-bounce 1.1s var(--md-sys-motion-spring-default-spatial) infinite alternate;
+    }
+    .eq-bars:not([data-playing='false']) > span:nth-child(2) {
+      animation-delay: 0.25s;
+    }
+    .eq-bars:not([data-playing='false']) > span:nth-child(3) {
+      animation-delay: 0.5s;
+    }
+  }
+
+  @keyframes eq-bounce {
+    from {
+      transform: scaleY(0.35);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+</style>
+
+<script>
+  /* ---------- Category Filtering ---------- */
+  const favRoot = document.querySelector<HTMLElement>('[data-favorites-root]');
+  const filterGroup = favRoot?.querySelector<HTMLElement>('[data-fav-filters]');
+  const filterButtons = Array.from(filterGroup?.querySelectorAll<HTMLButtonElement>('[data-fav-filter]') ?? []);
+  const sections = Array.from(favRoot?.querySelectorAll<HTMLElement>('[data-fav-section]') ?? []);
+  const introSection = favRoot?.querySelector<HTMLElement>('[data-fav-intro]');
+  const liveStatus = favRoot?.querySelector<HTMLElement>('[data-fav-live]');
+
+  function applyCategoryFilter(filter: string) {
+    for (const btn of filterButtons) {
+      btn.setAttribute('aria-pressed', btn.dataset.favFilter === filter ? 'true' : 'false');
+    }
+
+    if (introSection) {
+      introSection.hidden = filter !== 'all';
+    }
+
+    for (const section of sections) {
+      section.hidden = filter !== 'all' && section.dataset.favSection !== filter;
+    }
+
+    if (liveStatus) {
+      const labelMap: Record<string, string> = {
+        all: 'Showing all sections: games, YouTube channels, and music.',
+        game: 'Filtered to Games.',
+        movie: 'Filtered to YouTube channels.',
+        music: 'Filtered to Music.',
+      };
+      liveStatus.textContent = labelMap[filter] ?? 'Showing favorites.';
+    }
+  }
+
+  filterGroup?.addEventListener('click', (e) => {
+    const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[data-fav-filter]') : null;
+    if (btn?.dataset.favFilter) {
+      applyCategoryFilter(btn.dataset.favFilter);
+    }
+  });
+
+  /* ---------- Rich Detail Dialog ---------- */
+  const dialog = document.getElementById('favorite-detail-dialog') as HTMLDialogElement | null;
+  const dialogBanner = dialog?.querySelector<HTMLElement>('[data-dialog-fav-banner]');
+  const dialogCover = dialog?.querySelector<HTMLImageElement>('[data-dialog-fav-cover]');
+  const dialogMonogram = dialog?.querySelector<HTMLElement>('[data-dialog-fav-monogram]');
+  const dialogCategory = dialog?.querySelector<HTMLElement>('[data-dialog-fav-category]');
+  const dialogSample = dialog?.querySelector<HTMLElement>('[data-dialog-fav-sample]');
+  const dialogSubtitle = dialog?.querySelector<HTMLElement>('[data-dialog-fav-subtitle]');
+  const dialogTitle = dialog?.querySelector<HTMLElement>('[data-dialog-fav-title]');
+  const dialogReview = dialog?.querySelector<HTMLElement>('[data-dialog-fav-review]');
+  const dialogLink = dialog?.querySelector<HTMLAnchorElement>('[data-dialog-fav-link]');
+  const dialogLinkLabel = dialog?.querySelector<HTMLElement>('[data-dialog-fav-link-label]');
+  const dialogCloseBtn = dialog?.querySelector<HTMLButtonElement>('[data-dialog-fav-close]');
+  let lastTrigger: HTMLElement | null = null;
+
+  function toMonogram(title: string): string {
+    const words = title.replace(/[^\p{L}\p{N}\s]/gu, '').trim().split(/\s+/).filter(Boolean);
+    const letters = words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0] ?? '?').slice(0, 2);
+    return letters.toUpperCase();
+  }
+
+  function openFavoriteDialog(trigger: HTMLElement) {
+    if (!dialog) return;
+    lastTrigger = trigger;
+
+    const title = trigger.dataset.title ?? 'Favorite item';
+    const subtitle = trigger.dataset.subtitle ?? '';
+    const review = trigger.dataset.review ?? '';
+    const category = trigger.dataset.category ?? 'Favorite';
+    const cover = trigger.dataset.cover ?? '';
+    const url = trigger.dataset.url ?? '';
+    const rawAccent = trigger.dataset.accent ?? '#8c52ff';
+    const accent = /^#[0-9a-fA-F]{6}$/.test(rawAccent) ? rawAccent : '#8c52ff';
+    const isSample = trigger.dataset.sample === 'true';
+    const isChannel = category === 'YouTube';
+
+    if (dialogBanner) {
+      dialogBanner.style.background = `linear-gradient(125deg, color-mix(in srgb, ${accent} 32%, var(--md-sys-color-surface-container)) 0%, var(--md-sys-color-surface-container-low) 100%)`;
+    }
+
+    if (dialogCover && dialogMonogram) {
+      dialogCover.classList.toggle('rounded-full', isChannel);
+      dialogCover.classList.toggle('rounded-sm', !isChannel);
+      dialogMonogram.classList.toggle('rounded-full', isChannel);
+      dialogMonogram.classList.toggle('rounded-sm', !isChannel);
+
+      if (cover) {
+        dialogCover.src = cover;
+        dialogCover.alt = isChannel ? `${title} avatar` : `${title} cover`;
+        dialogCover.classList.remove('hidden');
+        dialogMonogram.classList.add('hidden');
+      } else {
+        dialogCover.src = '';
+        dialogCover.alt = '';
+        dialogCover.classList.add('hidden');
+        dialogMonogram.textContent = toMonogram(title);
+        dialogMonogram.classList.remove('hidden');
+      }
+    }
+
+    if (dialogCategory) dialogCategory.textContent = category;
+    if (dialogSample) dialogSample.hidden = !isSample;
+    if (dialogSubtitle) {
+      dialogSubtitle.textContent = subtitle;
+      dialogSubtitle.hidden = !subtitle;
+    }
+    if (dialogTitle) dialogTitle.textContent = title;
+    if (dialogReview) {
+      dialogReview.textContent = review || 'No personal notes added for this item yet.';
+    }
+    if (dialogLink) {
+      if (dialogLinkLabel) {
+        dialogLinkLabel.textContent = isChannel ? 'Open YouTube channel' : 'Open link';
+      }
+      if (/^https?:\/\//i.test(url)) {
+        dialogLink.href = url;
+        dialogLink.hidden = false;
+      } else {
+        dialogLink.href = '#';
+        dialogLink.hidden = true;
+      }
+    }
+
+    dialog.showModal();
+    dialogCloseBtn?.focus();
+  }
+
+  for (const trigger of favRoot?.querySelectorAll<HTMLElement>('[data-fav-trigger]') ?? []) {
+    trigger.addEventListener('click', () => openFavoriteDialog(trigger));
+  }
+
+  dialogCloseBtn?.addEventListener('click', () => dialog?.close());
+
+  dialog?.addEventListener('click', (e) => {
+    if (e.target === dialog) {
+      dialog.close();
+    }
+  });
+
+  dialog?.addEventListener('close', () => {
+    if (lastTrigger && document.contains(lastTrigger)) {
+      lastTrigger.focus();
+    }
+    lastTrigger = null;
+  });
+
+  /* ---------- Live Last.fm Scrobble Polling ---------- */
+  const lfmWidget = favRoot?.querySelector<HTMLElement>('[data-lfm-widget]');
+  const lfmLiveCard = lfmWidget?.querySelector<HTMLElement>('[data-lfm-live-card]');
+  const lfmEmpty = lfmWidget?.querySelector<HTMLElement>('[data-lfm-empty]');
+  const lfmError = lfmWidget?.querySelector<HTMLElement>('[data-lfm-error]');
+  const lfmErrorText = lfmWidget?.querySelector<HTMLElement>('[data-lfm-error-text]');
+  const lfmSetup = favRoot?.querySelector<HTMLElement>('[data-lfm-setup]');
+  const lfmStatusMsg = favRoot?.querySelector<HTMLElement>('[data-lfm-status-msg]');
+
+  const lfmLink = lfmWidget?.querySelector<HTMLAnchorElement>('[data-lfm-link]');
+  const lfmCover = lfmWidget?.querySelector<HTMLImageElement>('[data-lfm-cover]');
+  const lfmMonogram = lfmWidget?.querySelector<HTMLElement>('[data-lfm-monogram]');
+  const lfmEq = lfmWidget?.querySelector<HTMLElement>('[data-lfm-eq]');
+  const lfmStatusLabel = lfmWidget?.querySelector<HTMLElement>('[data-lfm-status]');
+  const lfmUser = lfmWidget?.querySelector<HTMLElement>('[data-lfm-user]');
+  const lfmTitle = lfmWidget?.querySelector<HTMLElement>('[data-lfm-title]');
+  const lfmSubtitle = lfmWidget?.querySelector<HTMLElement>('[data-lfm-subtitle]');
+
+  type ClientLastFmTrack = {
+    title: string;
+    artist: string;
+    album: string;
+    url: string;
+    coverUrl: string | null;
+    nowPlaying: boolean;
+    relativeTime: string;
+    username: string;
+  };
+
+  type ClientLastFmResponse =
+    | {
+        status: 'ok';
+        track: ClientLastFmTrack;
+        recentTracks?: ClientLastFmTrack[];
+      }
+    | { status: 'empty'; username: string }
+    | { status: 'not-configured' }
+    | { status: 'error'; message: string };
+
+  const lfmRecentList = favRoot?.querySelector<HTMLElement>('[data-lfm-recent-list]');
+
+  function extractVibrantHex(img: HTMLImageElement): string | null {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx || !img.naturalWidth) return null;
+      ctx.drawImage(img, 0, 0, 16, 16);
+      const { data } = ctx.getImageData(0, 0, 16, 16);
+
+      let bestScore = -1;
+      let bestRgb: [number, number, number] | null = null;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i]!;
+        const g = data[i + 1]!;
+        const b = data[i + 2]!;
+        const a = data[i + 3]!;
+        if (a < 180) continue;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const luma = (max + min) / 510;
+        const sat = max === 0 ? 0 : (max - min) / max;
+        if (luma < 0.14 || luma > 0.88) continue;
+        const score = sat * (1 - Math.abs(luma - 0.52));
+        if (score > bestScore) {
+          bestScore = score;
+          bestRgb = [r, g, b];
+        }
+      }
+
+      if (!bestRgb) return null;
+      return `#${bestRgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    } catch {
+      return null;
+    }
+  }
+
+  function applyCoverPalette(img: HTMLImageElement | null) {
+    if (!img || !lfmLiveCard) return;
+    if (!img.complete || !img.naturalWidth || img.classList.contains('hidden')) {
+      lfmLiveCard.style.setProperty('--lfm-accent', '#8c52ff');
+      return;
+    }
+    const vibrant = extractVibrantHex(img);
+    lfmLiveCard.style.setProperty('--lfm-accent', vibrant ?? '#8c52ff');
+  }
+
+  if (lfmCover) {
+    lfmCover.addEventListener('load', () => applyCoverPalette(lfmCover));
+    if (lfmCover.complete && lfmCover.naturalWidth > 0) {
+      applyCoverPalette(lfmCover);
+    }
+  }
+
+  function syncRecentTracksList(tracks: ClientLastFmTrack[]) {
+    if (!lfmRecentList || tracks.length === 0) return;
+    const rows = Array.from(lfmRecentList.querySelectorAll<HTMLButtonElement>('[data-fav-trigger]'));
+    tracks.slice(0, rows.length).forEach((item, idx) => {
+      const btn = rows[idx];
+      if (!btn) return;
+      const subtitle = item.album ? `${item.artist} · ${item.album}` : item.artist;
+      btn.setAttribute('aria-label', `View details for ${item.title}`);
+      btn.dataset.title = item.title;
+      btn.dataset.subtitle = subtitle;
+      btn.dataset.review = `Scrobbled via Last.fm (@${item.username}) · ${item.relativeTime}.`;
+      btn.dataset.cover = item.coverUrl ?? '';
+      btn.dataset.url = item.url;
+
+      const titleSpan = btn.querySelector<HTMLElement>('.text-title-md');
+      if (titleSpan) titleSpan.textContent = item.title;
+      const timeSpan = btn.querySelector<HTMLElement>('.tabular-nums');
+      if (timeSpan) timeSpan.textContent = item.relativeTime;
+      const subEl = btn.querySelector<HTMLElement>('.text-body-sm');
+      if (subEl) subEl.textContent = subtitle;
+      const img = btn.querySelector<HTMLImageElement>('[data-recent-cover]');
+      const mono = btn.querySelector<HTMLElement>('[data-recent-monogram]');
+      if (img && mono) {
+        if (item.coverUrl) {
+          img.src = item.coverUrl;
+          img.alt = `${item.title} cover art`;
+          img.classList.remove('hidden');
+          mono.classList.add('hidden');
+        } else {
+          img.src = '';
+          img.classList.add('hidden');
+          mono.textContent = toMonogram(item.title);
+          mono.classList.remove('hidden');
+        }
+      }
+    });
+  }
+
+  function renderLastFmState(payload: ClientLastFmResponse) {
+    if (!lfmWidget) return;
+    lfmWidget.dataset.lfmStatusKind = payload.status;
+
+    if (lfmLiveCard) lfmLiveCard.hidden = payload.status !== 'ok';
+    if (lfmEmpty) lfmEmpty.hidden = payload.status !== 'empty';
+    if (lfmError) lfmError.hidden = payload.status !== 'error';
+    if (lfmSetup) lfmSetup.hidden = payload.status !== 'not-configured';
+
+    if (payload.status === 'ok') {
+      const t = payload.track;
+      if (lfmLink) lfmLink.href = t.url;
+      if (lfmTitle) lfmTitle.textContent = t.title;
+      if (lfmSubtitle) lfmSubtitle.textContent = t.album ? `${t.artist} · ${t.album}` : t.artist;
+      if (lfmStatusLabel) lfmStatusLabel.textContent = t.relativeTime;
+      if (lfmUser) lfmUser.textContent = `@${t.username}`;
+      if (lfmEq) lfmEq.dataset.playing = t.nowPlaying ? 'true' : 'false';
+
+      if (lfmCover && lfmMonogram) {
+        if (t.coverUrl) {
+          lfmCover.src = t.coverUrl;
+          lfmCover.alt = `${t.title} album cover`;
+          lfmCover.classList.remove('hidden');
+          lfmMonogram.classList.add('hidden');
+          if (lfmCover.complete && lfmCover.naturalWidth > 0) applyCoverPalette(lfmCover);
+        } else {
+          lfmCover.src = '';
+          lfmCover.classList.add('hidden');
+          lfmMonogram.textContent = toMonogram(t.title);
+          lfmMonogram.classList.remove('hidden');
+          if (lfmLiveCard) lfmLiveCard.style.setProperty('--lfm-accent', '#8c52ff');
+        }
+      }
+
+      if (Array.isArray(payload.recentTracks)) {
+        syncRecentTracksList(payload.recentTracks);
+      }
+    } else if (payload.status === 'empty' && lfmEmpty) {
+      lfmEmpty.textContent = `Connected to Last.fm (@${payload.username}), but no recent scrobbles were found yet.`;
+    } else if (payload.status === 'error' && lfmErrorText) {
+      lfmErrorText.textContent = payload.message;
+    }
+  }
+
+  let lfmInFlight = false;
+  async function refreshLastFm(manual = false) {
+    if (!lfmWidget || lfmInFlight) return;
+    if (!manual && lfmWidget.dataset.lfmStatusKind === 'not-configured') return;
+    lfmInFlight = true;
+
+    const retryButtons = Array.from(favRoot?.querySelectorAll<HTMLButtonElement>('[data-lfm-retry]') ?? []);
+    if (manual) {
+      for (const btn of retryButtons) btn.disabled = true;
+    }
+
+    try {
+      const res = await fetch(`/api/now-playing.json${manual ? '?refresh=1' : ''}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = (await res.json()) as ClientLastFmResponse;
+      renderLastFmState(payload);
+
+      if (manual) {
+        const msg =
+          payload.status === 'ok'
+            ? `Updated from Last.fm: ${payload.track.title} by ${payload.track.artist}.`
+            : payload.status === 'not-configured'
+              ? 'Last.fm is not configured yet. Add LASTFM_USERNAME and LASTFM_API_KEY in .env.'
+              : payload.status === 'empty'
+                ? 'Last.fm connected, no recent scrobbles yet.'
+                : payload.message;
+        if (lfmStatusMsg) lfmStatusMsg.textContent = msg;
+        window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: msg } }));
+      }
+    } catch {
+      const msg = 'Could not check Last.fm status right now.';
+      if (manual) {
+        if (lfmStatusMsg) lfmStatusMsg.textContent = msg;
+        window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: msg } }));
+      }
+    } finally {
+      lfmInFlight = false;
+      for (const btn of retryButtons) btn.disabled = false;
+    }
+  }
+
+  for (const btn of favRoot?.querySelectorAll<HTMLButtonElement>('[data-lfm-retry]') ?? []) {
+    btn.addEventListener('click', () => refreshLastFm(true));
+  }
+
+  if (lfmWidget && lfmWidget.dataset.lfmStatusKind !== 'not-configured') {
+    window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshLastFm(false);
+      }
+    }, 20_000);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        refreshLastFm(false);
+      }
+    });
+  }
+</script>

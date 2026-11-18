@@ -11,6 +11,8 @@ export interface SkillGroup {
   items: string[];
 }
 
+export type FavoriteCategory = 'game' | 'movie' | 'music';
+
 export type Database = {
   __InternalSupabase: {
     PostgrestVersion: '12';
@@ -197,6 +199,54 @@ export type Database = {
         };
         Relationships: [];
       };
+      favorite_items: {
+        Row: {
+          id: string;
+          category: FavoriteCategory;
+          title: string;
+          subtitle: string;
+          review: string;
+          cover_url: string | null;
+          external_url: string | null;
+          accent_color: string;
+          featured: boolean;
+          published: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          category: FavoriteCategory;
+          title: string;
+          subtitle?: string;
+          review?: string;
+          cover_url?: string | null;
+          external_url?: string | null;
+          accent_color?: string;
+          featured?: boolean;
+          published?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          category?: FavoriteCategory;
+          title?: string;
+          subtitle?: string;
+          review?: string;
+          cover_url?: string | null;
+          external_url?: string | null;
+          accent_color?: string;
+          featured?: boolean;
+          published?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -213,3 +263,5 @@ export type SocialLinkRow = Database['public']['Tables']['social_links']['Row'];
 export type SocialLinkInsert = Database['public']['Tables']['social_links']['Insert'];
 export type SiteContentRow = Database['public']['Tables']['site_content']['Row'];
 export type SiteContentInsert = Database['public']['Tables']['site_content']['Insert'];
+export type FavoriteItemRow = Database['public']['Tables']['favorite_items']['Row'];
+export type FavoriteItemInsert = Database['public']['Tables']['favorite_items']['Insert'];

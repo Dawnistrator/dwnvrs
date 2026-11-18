@@ -72,7 +72,26 @@
   --md-sys-shape-corner-card: 24px;
   --md-sys-shape-corner-full: 9999px;
 
-  /* ---- Motion ---- */
+  /* ---- Motion (M3 Motion Physics System: Web spring-to-curve tokens) ---- */
+  /* Spatial specs: movement, scale, and shape morphing (spring overshoot permitted). */
+  --md-sys-motion-spring-fast-spatial: cubic-bezier(0.42, 1.67, 0.21, 0.9);
+  --md-sys-motion-spring-fast-spatial-duration: 350ms;
+  --md-sys-motion-spring-default-spatial: cubic-bezier(0.38, 1.21, 0.22, 1);
+  --md-sys-motion-spring-default-spatial-duration: 500ms;
+  --md-sys-motion-spring-slow-spatial: cubic-bezier(0.39, 1.29, 0.35, 0.98);
+  --md-sys-motion-spring-slow-spatial-duration: 650ms;
+  --md-sys-motion-spring-standard-spatial: cubic-bezier(0.27, 1.06, 0.18, 1);
+  --md-sys-motion-spring-standard-spatial-duration: 500ms;
+
+  /* Effects specs: color, border, opacity, and scrim (critically damped, zero overshoot). */
+  --md-sys-motion-spring-fast-effects: cubic-bezier(0.31, 0.94, 0.34, 1);
+  --md-sys-motion-spring-fast-effects-duration: 150ms;
+  --md-sys-motion-spring-default-effects: cubic-bezier(0.34, 0.8, 0.34, 1);
+  --md-sys-motion-spring-default-effects-duration: 200ms;
+  --md-sys-motion-spring-slow-effects: cubic-bezier(0.34, 0.88, 0.34, 1);
+  --md-sys-motion-spring-slow-effects-duration: 300ms;
+
+  /* Legacy aliases retained for backwards compatibility */
   --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
   --md-sys-motion-duration-short2: 100ms;

@@ -1,0 +1,47 @@
+---
+import FavoritesShowcase from '../components/FavoritesShowcase.astro';
+import Icon from '../components/Icon.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPublishedFavorites } from '../lib/favorites';
+import { getLastFmNowPlaying } from '../lib/lastfm';
+import { resolveSiteContent } from '../lib/site-content';
+import { getPublishedSocials } from '../lib/socials';
+
+const [{ content }, favoritesResult, lastFmResult, socialsResult] = await Promise.all([
+  resolveSiteContent(Astro.locals),
+  getPublishedFavorites(Astro.locals.supabase),
+  getLastFmNowPlaying(),
+  getPublishedSocials(Astro.locals.supabase),
+]);
+---
+
+<BaseLayout
+  title={`Favorites | ${content.brand}`}
+  description={`Favorite games, YouTube channels, and music curated by ${content.owner} (${content.brand}).`}
+  activeNav="favorites"
+>
+  <div class="container-page space-y-8 py-10 sm:py-14 lg:py-16">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <a href="/" class="btn btn-text">
+        <Icon name="arrow-back" />
+        <span>Back home</span>
+      </a>
+      {
+        Astro.locals.isAdmin && (
+          <a href="/admin?tab=favorites" class="btn btn-accent">
+            Manage favorites
+          </a>
+        )
+      }
+    </div>
+
+    <FavoritesShowcase
+      mode="page"
+      content={content}
+      favoritesResult={favoritesResult}
+      lastFmResult={lastFmResult}
+      socialsResult={socialsResult}
+      isAdmin={Astro.locals.isAdmin}
+    />
+  </div>
+</BaseLayout>

@@ -1,5 +1,6 @@
 import { ActionError, defineAction, type ActionAPIContext } from 'astro:actions';
 import { z } from 'astro/zod';
+import { isMissingFavoritesTableError } from '../lib/favorites';
 import { slugify } from '../lib/projects';
 import { isSafeHref, parseCommaItems, type SkillGroup } from '../lib/site-content';
 import { PROJECT_IMAGES_BUCKET, resolveAdmin, type TypedSupabaseClient } from '../lib/supabase';
@@ -445,6 +446,164 @@ export const server = {
         }
 
         context.locals.siteContent = undefined;
+        return { ok: true as const };
+      },
+    }),
+
+    saveFavorite: defineAction({
+      accept: 'form',
+      input: z.object({
+        id: z.uuid().optional(),
+        category: z.enum(['game', 'movie', 'music'], { error: 'Pick a category.' }),
+        title: z
+          .string({ error: 'Enter a title.' })
+          .trim()
+          .min(1, 'Enter a title.')
+          .max(120, 'Keep the title under 120 characters.'),
+        subtitle: z.string().trim().max(120, 'Keep the subtitle under 120 characters.').optional(),
+        review: z.string().trim().max(600, 'Keep the note under 600 characters.').optional(),
+        cover_url: optionalUrl('Cover image URL'),
+        external_url: optionalUrl('External link'),
+        accent_color: z
+          .string()
+          .trim()
+          .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color like #8c52ff.')
+          .optional(),
+        featured: z.boolean(),
+        published: z.boolean(),
+        sort_order: z
+          .number({ error: 'Order must be a whole number.' })
+          .int('Order must be a whole number.')
+          .min(-9999)
+          .max(9999)
+          .optional(),
+        cover: z.instanceof(File).optional(),
+        remove_cover: z.boolean(),
+      }),
+      handler: async (input, context) => {
+        const supabase = await requireAdmin(context);
+
+        let existingCoverUrl: string | null = null;
+        if (input.id) {
+          const { data, error } = await supabase
+            .from('favorite_items')
+            .select('cover_url')
+            .eq('id', input.id)
+            .maybeSingle();
+          if (error) {
+            if (isMissingFavoritesTableError(error.code, error.message)) {
+              throw new ActionError({
+                code: 'FAILED_DEPENDENCY',
+                message: 'The public.favorite_items table is missing in Supabase. Run the updated supabase/schema.sql in Supabase SQL Editor first.',
+              });
+            }
+            throw new ActionError({ code: 'INTERNAL_SERVER_ERROR', message: error.message });
+          }
+          if (!data) {
+            throw new ActionError({ code: 'NOT_FOUND', message: 'This favorite entry no longer exists.' });
+          }
+          existingCoverUrl = data.cover_url;
+        }
+
+        const coverFile = realFiles([input.cover])[0];
+        assertImages(coverFile ? [coverFile] : []);
+
+        let coverUrl = existingCoverUrl;
+        const staleUrls: (string | null)[] = [];
+        let uploadedCover: string | null = null;
+
+        if (coverFile) {
+          staleUrls.push(existingCoverUrl);
+          uploadedCover = await uploadImage(supabase, coverFile, `favorites/${input.category}`);
+          coverUrl = uploadedCover;
+        } else if (input.remove_cover) {
+          staleUrls.push(existingCoverUrl);
+          coverUrl = null;
+        } else if (input.cover_url !== undefined) {
+          if (input.cover_url !== existingCoverUrl) {
+            staleUrls.push(existingCoverUrl);
+          }
+          coverUrl = input.cover_url;
+        }
+
+        const record = {
+          category: input.category,
+          title: input.title,
+          subtitle: input.subtitle ?? '',
+          review: input.review ?? '',
+          cover_url: coverUrl,
+          external_url: input.external_url ?? null,
+          accent_color: input.accent_color || '#8c52ff',
+          featured: input.featured,
+          published: input.published,
+          sort_order: input.sort_order ?? 0,
+        };
+
+        const query = input.id
+          ? supabase.from('favorite_items').update(record).eq('id', input.id).select('id, title').single()
+          : supabase.from('favorite_items').insert(record).select('id, title').single();
+        const { data, error } = await query;
+
+        if (error) {
+          await removeImages(supabase, [uploadedCover]);
+          if (isMissingFavoritesTableError(error.code, error.message)) {
+            throw new ActionError({
+              code: 'FAILED_DEPENDENCY',
+              message: 'The public.favorite_items table is missing in Supabase. Run the updated supabase/schema.sql in Supabase SQL Editor first.',
+            });
+          }
+          throw new ActionError({ code: 'INTERNAL_SERVER_ERROR', message: `Saving failed: ${error.message}` });
+        }
+
+        await removeImages(supabase, staleUrls);
+        return { id: data.id, title: data.title, created: !input.id };
+      },
+    }),
+
+    deleteFavorite: defineAction({
+      accept: 'form',
+      input: z.object({ id: z.uuid() }),
+      handler: async ({ id }, context) => {
+        const supabase = await requireAdmin(context);
+        const { data, error } = await supabase
+          .from('favorite_items')
+          .delete()
+          .eq('id', id)
+          .select('cover_url')
+          .maybeSingle();
+        if (error) {
+          if (isMissingFavoritesTableError(error.code, error.message)) {
+            throw new ActionError({
+              code: 'FAILED_DEPENDENCY',
+              message: 'The public.favorite_items table is missing in Supabase. Run the updated supabase/schema.sql in Supabase SQL Editor first.',
+            });
+          }
+          throw new ActionError({ code: 'INTERNAL_SERVER_ERROR', message: `Deleting failed: ${error.message}` });
+        }
+        if (!data) throw new ActionError({ code: 'NOT_FOUND', message: 'That favorite entry was already deleted.' });
+        await removeImages(supabase, [data.cover_url]);
+        return { ok: true as const };
+      },
+    }),
+
+    reorderFavorites: defineAction({
+      input: z.object({
+        ids: z.array(z.uuid()).min(1).max(100),
+      }),
+      handler: async (input, context) => {
+        const supabase = await requireAdmin(context);
+        const results = await Promise.all(
+          input.ids.map((id, idx) =>
+            supabase.from('favorite_items').update({ sort_order: idx }).eq('id', id),
+          ),
+        );
+        const firstError = results.find((r) => r.error)?.error;
+        if (firstError) {
+          throw new ActionError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Reordering failed: ${firstError.message}`,
+          });
+        }
         return { ok: true as const };
       },
     }),

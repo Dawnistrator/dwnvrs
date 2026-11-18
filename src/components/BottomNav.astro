@@ -2,16 +2,17 @@
 import Icon, { type IconName } from './Icon.astro';
 
 interface Props {
-  active?: 'home' | 'projects' | 'about' | 'socials';
+  active?: 'home' | 'projects' | 'about' | 'favorites' | 'socials';
 }
 
 const { active = 'home' } = Astro.props;
 
-const items: { id: 'home' | 'projects' | 'about' | 'socials'; label: string; href: string; icon: IconName }[] = [
+const items: { id: 'home' | 'projects' | 'about' | 'favorites' | 'socials'; label: string; href: string; icon: IconName }[] = [
   { id: 'home', label: 'Home', href: '/#top', icon: 'home' },
   { id: 'projects', label: 'Projects', href: '/#projects', icon: 'folder' },
   { id: 'about', label: 'About', href: '/#about', icon: 'person' },
   { id: 'socials', label: 'Socials', href: '/#socials', icon: 'link' },
+  { id: 'favorites', label: 'Favorites', href: '/#favorites', icon: 'bookmark' },
 ];
 ---
 
@@ -20,7 +21,7 @@ const items: { id: 'home' | 'projects' | 'about' | 'socials'; label: string; hre
   data-mobile-nav
   class="fixed inset-x-0 bottom-0 z-30 border-t border-outline-variant/50 bg-surface-container pb-[env(safe-area-inset-bottom,0px)] md:hidden"
 >
-  <ul class="grid grid-cols-4">
+  <ul class="grid grid-cols-5">
     {
       items.map((item) => (
         <li>
@@ -28,12 +29,12 @@ const items: { id: 'home' | 'projects' | 'about' | 'socials'; label: string; hre
             href={item.href}
             data-nav-id={item.id}
             aria-current={active === item.id ? 'page' : undefined}
-            class="group flex min-h-16 flex-col items-center justify-center gap-1 px-2 py-2 text-label-md text-on-surface-variant"
+            class="group flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 text-label-sm sm:text-label-md text-on-surface-variant"
           >
-            <span class="state-layer flex h-8 w-14 items-center justify-center rounded-full transition-colors group-aria-[current=page]:bg-secondary-container group-aria-[current=page]:text-on-secondary-container">
+            <span class="state-layer flex h-8 w-12 items-center justify-center rounded-full transition-colors group-aria-[current=page]:bg-secondary-container group-aria-[current=page]:text-on-secondary-container">
               <Icon name={item.icon} class="size-5" />
             </span>
-            <span class="group-aria-[current=page]:text-on-surface">{item.label}</span>
+            <span class="truncate group-aria-[current=page]:text-on-surface">{item.label}</span>
           </a>
         </li>
       ))

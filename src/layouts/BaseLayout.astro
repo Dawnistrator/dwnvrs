@@ -13,7 +13,7 @@ interface Props {
   imageAlt?: string;
   ogType?: 'website' | 'article';
   includeStructuredData?: boolean;
-  activeNav?: 'home' | 'projects' | 'about' | 'socials';
+  activeNav?: 'home' | 'projects' | 'about' | 'favorites' | 'socials';
   hidePublicNav?: boolean;
   robots?: string;
   snackbarMessage?: string | null;
@@ -145,6 +145,7 @@ const structuredDataJson = includeStructuredData
               { id: 'projects', nav: 'projects' },
               { id: 'about', nav: 'about' },
               { id: 'socials', nav: 'socials' },
+              { id: 'favorites', nav: 'favorites' },
             ]
               .map((entry) => ({
                 id: entry.id,
@@ -172,39 +173,54 @@ const structuredDataJson = includeStructuredData
             let pickActiveNav = () => {};
 
             if (sections.length > 0 && 'IntersectionObserver' in window) {
-              const ratios = new Map<string, number>();
               let footerVisible = false;
+              let spyRafId = 0;
 
               pickActiveNav = () => {
                 if (lockedNav) return;
                 if (footerVisible && window.scrollY > 0) {
-                  setActiveNav('socials');
+                  setActiveNav('favorites');
                   return;
                 }
+                const bandTop = window.innerHeight * 0.18;
+                const bandBottom = window.innerHeight * 0.52;
                 let bestNav: string | null = null;
-                let bestRatio = 0;
+                let bestOverlap = 0;
                 for (const s of sections) {
-                  const ratio = ratios.get(s.nav) ?? 0;
-                  if (ratio > bestRatio) {
-                    bestRatio = ratio;
+                  const rect = s.el.getBoundingClientRect();
+                  const overlap = Math.max(0, Math.min(rect.bottom, bandBottom) - Math.max(rect.top, bandTop));
+                  if (overlap > bestOverlap) {
+                    bestOverlap = overlap;
                     bestNav = s.nav;
                   }
                 }
                 if (bestNav) setActiveNav(bestNav);
               };
 
+              const scheduleSpyUpdate = () => {
+                if (spyRafId) return;
+                spyRafId = window.requestAnimationFrame(() => {
+                  spyRafId = 0;
+                  pickActiveNav();
+                });
+              };
+
+              const initialHash = window.location.hash.slice(1);
+              const initialMatch = sections.find((s) => s.id === initialHash);
+              if (initialMatch) {
+                setActiveNav(initialMatch.nav);
+              } else {
+                pickActiveNav();
+              }
+
               const observer = new IntersectionObserver(
-                (entries) => {
-                  for (const entry of entries) {
-                    const match = sections.find((s) => s.el === entry.target);
-                    if (!match) continue;
-                    ratios.set(match.nav, entry.isIntersecting ? entry.intersectionRatio : 0);
-                  }
+                () => {
                   pickActiveNav();
                 },
-                { rootMargin: '-20% 0px -50% 0px', threshold: [0, 0.2, 0.5] },
+                { rootMargin: '-18% 0px -48% 0px', threshold: [0, 0.05, 0.1, 0.2, 0.35, 0.5] },
               );
               for (const s of sections) observer.observe(s.el);
+              window.addEventListener('scroll', scheduleSpyUpdate, { passive: true });
 
               // Ensure the bottom-most section activates even on tall desktop viewports.
               const footer = document.querySelector('footer');

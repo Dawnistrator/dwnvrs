@@ -225,6 +225,61 @@ create policy "site_content: admin update"
 insert into public.site_content (id) values ('main') on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------
+-- Favorite items (games, movies/films, music)
+-- Publicly readable when published; editable by admins only.
+-- ---------------------------------------------------------------------
+create table if not exists public.favorite_items (
+  id uuid primary key default gen_random_uuid(),
+  category text not null check (category in ('game', 'movie', 'music')),
+  title text not null check (char_length(title) between 1 and 120),
+  subtitle text not null default '' check (char_length(subtitle) <= 120),
+  review text not null default '' check (char_length(review) <= 600),
+  cover_url text check (cover_url is null or cover_url ~ '^https?://'),
+  external_url text check (external_url is null or external_url ~ '^https?://'),
+  accent_color text not null default '#8c52ff' check (accent_color ~ '^#[0-9a-fA-F]{6}$'),
+  featured boolean not null default false,
+  published boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists favorite_items_listing_idx
+  on public.favorite_items (published, category, featured desc, sort_order, created_at desc);
+
+drop trigger if exists favorite_items_set_updated_at on public.favorite_items;
+create trigger favorite_items_set_updated_at
+  before update on public.favorite_items
+  for each row execute function public.set_updated_at();
+
+alter table public.favorite_items enable row level security;
+
+drop policy if exists "favorite_items: public read published" on public.favorite_items;
+create policy "favorite_items: public read published"
+  on public.favorite_items for select
+  to anon, authenticated
+  using (published or public.is_admin());
+
+drop policy if exists "favorite_items: admin insert" on public.favorite_items;
+create policy "favorite_items: admin insert"
+  on public.favorite_items for insert
+  to authenticated
+  with check (public.is_admin());
+
+drop policy if exists "favorite_items: admin update" on public.favorite_items;
+create policy "favorite_items: admin update"
+  on public.favorite_items for update
+  to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists "favorite_items: admin delete" on public.favorite_items;
+create policy "favorite_items: admin delete"
+  on public.favorite_items for delete
+  to authenticated
+  using (public.is_admin());
+
+-- ---------------------------------------------------------------------
 -- Storage: project images (public read, admin write)
 -- ---------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

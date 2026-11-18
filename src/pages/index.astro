@@ -1,17 +1,23 @@
 ---
+import FavoritesShowcase from '../components/FavoritesShowcase.astro';
 import HeroTonalField from '../components/HeroTonalField.astro';
 import LanyardCard from '../components/LanyardCard.astro';
+import NowPlayingPill from '../components/NowPlayingPill.astro';
 import ProjectsSection from '../components/ProjectsSection.astro';
 import SocialLinksList from '../components/SocialLinksList.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPublishedFavorites } from '../lib/favorites';
+import { getLastFmNowPlaying } from '../lib/lastfm';
 import { getPublishedProjects } from '../lib/projects';
 import { parseAboutParagraphs, resolveSiteContent } from '../lib/site-content';
 import { getPublishedSocials } from '../lib/socials';
 
-const [{ content }, projectsResult, socialsResult] = await Promise.all([
+const [{ content }, projectsResult, socialsResult, favoritesResult, lastFmResult] = await Promise.all([
   resolveSiteContent(Astro.locals),
   getPublishedProjects(Astro.locals.supabase),
   getPublishedSocials(Astro.locals.supabase),
+  getPublishedFavorites(Astro.locals.supabase),
+  getLastFmNowPlaying(),
 ]);
 
 const aboutParagraphs = parseAboutParagraphs(content.aboutParagraphs);
@@ -26,7 +32,7 @@ const aboutParagraphs = parseAboutParagraphs(content.aboutParagraphs);
   <section id="top" aria-labelledby="hero-heading" class="relative isolate z-20 overflow-x-clip pt-10 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-24">
     <HeroTonalField />
     <div class="container-page grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-start lg:gap-12">
-      <div class="space-y-6">
+      <div class="min-w-0 space-y-6">
         {content.heroEyebrow && <p class="text-label-lg text-primary">{content.heroEyebrow}</p>}
 
         <h1
@@ -43,6 +49,10 @@ const aboutParagraphs = parseAboutParagraphs(content.aboutParagraphs);
         <div class="flex flex-wrap items-center gap-3 pt-1">
           <a href={content.heroPrimaryCtaHref} class="btn btn-accent">{content.heroPrimaryCtaLabel}</a>
           <a href={content.heroSecondaryCtaHref} class="btn btn-outlined">{content.heroSecondaryCtaLabel}</a>
+        </div>
+
+        <div class="pt-1">
+          <NowPlayingPill />
         </div>
       </div>
 
@@ -102,7 +112,7 @@ const aboutParagraphs = parseAboutParagraphs(content.aboutParagraphs);
   </section>
 
   <!-- Social Media -->
-  <section id="socials" aria-labelledby="socials-heading" class="py-12 pb-16 sm:py-16 sm:pb-20 lg:py-20 lg:pb-24">
+  <section id="socials" aria-labelledby="socials-heading" class="py-12 sm:py-16 lg:py-20">
     <div class="container-page space-y-8">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="max-w-2xl space-y-2">
@@ -117,6 +127,34 @@ const aboutParagraphs = parseAboutParagraphs(content.aboutParagraphs);
       </div>
 
       <SocialLinksList result={socialsResult} compact={true} headingLevel="h3" showAdmin={Astro.locals.isAdmin} />
+    </div>
+  </section>
+
+  <!-- Favorites -->
+  <section id="favorites" aria-labelledby="favorites-heading" class="py-12 pb-16 sm:py-16 sm:pb-20 lg:py-20 lg:pb-24">
+    <div class="container-page space-y-8">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div class="max-w-2xl space-y-2">
+          <h2 id="favorites-heading" class="text-headline-sm text-on-surface sm:text-headline-md text-balance">
+            Favorites
+          </h2>
+          <p class="text-body-lg text-on-surface-variant text-pretty">
+            YouTube channels I watch, live Last.fm scrobbles, and games on rotation.
+          </p>
+        </div>
+        <a href="/favorites" class="btn btn-outlined self-start sm:self-end">
+          Open favorites page
+        </a>
+      </div>
+
+      <FavoritesShowcase
+        mode="section"
+        content={content}
+        favoritesResult={favoritesResult}
+        lastFmResult={lastFmResult}
+        socialsResult={socialsResult}
+        isAdmin={Astro.locals.isAdmin}
+      />
     </div>
   </section>
 </BaseLayout>
