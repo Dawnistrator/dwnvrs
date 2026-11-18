@@ -18,7 +18,7 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
 
 <BaseLayout
   title={`Admin sign in | ${siteContent.brand}`}
-  description={`Sign in to manage projects, home sections, and social media links for ${siteContent.brand}.`}
+  description={`Sign in to manage projects and site content for ${siteContent.brand}.`}
   hidePublicNav={true}
   robots="noindex, nofollow"
 >
@@ -30,9 +30,8 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
           <span>{siteContent.brand}</span>
         </div>
         <h1 class="text-headline-sm text-on-surface sm:text-headline-md">Admin sign in</h1>
-        <p class="text-body-md text-on-surface-variant">
-          Sign in with an account listed in <code class="text-on-surface">public.admins</code> to edit projects, home
-          sections, and social media links.
+        <p class="text-body-md text-on-surface-variant text-pretty">
+          Sign in with your admin account to manage projects and site content.
         </p>
       </div>
 

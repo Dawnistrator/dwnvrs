@@ -114,7 +114,7 @@ export const server = {
           await supabase.auth.signOut();
           throw new ActionError({
             code: 'FORBIDDEN',
-            message: 'This account is not on the admin list. Add its user ID to public.admins in Supabase.',
+            message: 'This account does not have admin access.',
           });
         }
 
