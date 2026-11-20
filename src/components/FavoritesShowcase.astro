@@ -158,42 +158,46 @@ function posterDataAttrs(item: FavoriteItem) {
         </div>
 
         <div class="grid gap-6 lg:grid-cols-2" data-fav-columns>
-          <!-- Left Column: Intro + YouTube Channels -->
-          <div class="flex min-w-0 flex-col gap-6">
-            <section
-              aria-labelledby="favorites-intro-heading"
-              data-fav-intro
-              class="card-filled relative overflow-hidden rounded-xl p-5 sm:p-7 space-y-5"
-              style="background: radial-gradient(at 115% 115%, color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent) 0%, var(--md-sys-color-surface-container) 70%);"
-            >
-              <ExpressiveBadge shape="clover" tone="primary" icon="bookmark" />
+          <!-- Full-width Intro Banner -->
+          <section
+            aria-labelledby="favorites-intro-heading"
+            data-fav-intro
+            class="card-filled relative overflow-hidden rounded-xl p-5 sm:p-7 lg:col-span-2"
+            style="background: radial-gradient(at 105% 115%, color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent) 0%, var(--md-sys-color-surface-container) 70%);"
+          >
+            <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+              <div class="space-y-4">
+                <ExpressiveBadge shape="clover" tone="primary" icon="bookmark" />
 
-              <div class="space-y-3">
-                <p class="text-label-lg text-primary">
-                  {content.brand} · {content.owner}
-                </p>
-                <IntroHeadingTag id="favorites-intro-heading" class="text-display-sm text-on-surface text-balance">
-                  Off the clock
-                </IntroHeadingTag>
-                <ul class="list-disc space-y-1.5 pl-5 text-body-lg text-on-surface-variant text-pretty">
-                  <li>video games that hooked me for dozens of hours</li>
-                  <li>YouTube channels and tech creators on my daily watch list</li>
-                  <li>albums and tracks on rotation while writing code</li>
-                </ul>
+                <div class="space-y-3">
+                  <p class="text-label-lg text-primary">
+                    {content.brand} · {content.owner}
+                  </p>
+                  <IntroHeadingTag id="favorites-intro-heading" class="text-display-sm text-on-surface text-balance">
+                    Off the clock
+                  </IntroHeadingTag>
+                  <ul class="list-disc space-y-1.5 pl-5 text-body-lg text-on-surface-variant text-pretty">
+                    <li>video games that hooked me for dozens of hours</li>
+                    <li>YouTube channels and tech creators on my daily watch list</li>
+                    <li>albums and tracks on rotation while writing code</li>
+                  </ul>
+                </div>
               </div>
 
-              <div class="flex flex-wrap gap-2 pt-1">
+              <div class="flex flex-wrap gap-2 pt-1 lg:shrink-0 lg:justify-end">
                 <span class="chip-assist tabular-nums">{games.length} Games</span>
                 <span class="chip-assist tabular-nums">{movies.length} Channels</span>
                 <span class="chip-assist tabular-nums">{effectiveMusicCount} Tracks</span>
               </div>
-            </section>
+            </div>
+          </section>
 
-            <section
-              aria-labelledby="channels-heading"
-              data-fav-section="movie"
-              class="card-filled flex flex-1 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
-            >
+          <!-- YouTube Channels -->
+          <section
+            aria-labelledby="channels-heading"
+            data-fav-section="movie"
+            class="card-filled flex min-w-0 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
+          >
               <div class="space-y-5">
                 <ExpressiveBadge shape="pill-tilted" tone="secondary" icon="youtube" />
 
@@ -305,15 +309,14 @@ function posterDataAttrs(item: FavoriteItem) {
                 )
               }
             </section>
-          </div>
 
-          <!-- Right Column: Music + Games -->
-          <div class="flex min-w-0 flex-col gap-6">
-            <section
-              aria-labelledby="music-heading"
-              data-fav-section="music"
-              class="card-filled rounded-xl p-5 sm:p-7 space-y-5"
-            >
+          <!-- Music -->
+          <section
+            aria-labelledby="music-heading"
+            data-fav-section="music"
+            class="card-filled flex min-w-0 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
+          >
+            <div class="space-y-5">
               <ExpressiveBadge shape="scallop" tone="secondary" icon="graphic-eq" />
 
               <div class="space-y-1.5">
@@ -641,8 +644,9 @@ function posterDataAttrs(item: FavoriteItem) {
                   <p data-lfm-status-msg class="sr-only" aria-live="polite" />
                 </div>
               )}
+            </div>
 
-              <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+              <div class="mt-auto flex flex-wrap items-center justify-end gap-2 pt-1">
                 <a
                   href={lastFmProfileUrl}
                   target="_blank"
@@ -658,10 +662,11 @@ function posterDataAttrs(item: FavoriteItem) {
               </div>
             </section>
 
+            <!-- Games (Full-Width Showcase) -->
             <section
               aria-labelledby="games-heading"
               data-fav-section="game"
-              class="card-filled flex flex-1 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
+              class="card-filled flex min-w-0 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7 lg:col-span-2"
             >
               <div class="space-y-5">
                 <ExpressiveBadge shape="starburst" tone="primary" icon="joystick" />
@@ -680,12 +685,12 @@ function posterDataAttrs(item: FavoriteItem) {
                     No favorite games published yet.
                   </div>
                 ) : (
-                  <div class="grid grid-cols-3 gap-3 sm:grid-cols-5 sm:gap-3.5">
+                  <div class="grid grid-cols-2 gap-3.5 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-4 lg:gap-5">
                     {games.map((game) => (
                       <button
                         type="button"
                         aria-label={`View details for ${game.title}`}
-                        class="group state-layer relative aspect-[2/3] w-full overflow-hidden rounded-sm bg-surface-container-high text-left motion-safe:transition-transform motion-safe:duration-[350ms] motion-safe:ease-spring-fast motion-safe:hover:-translate-y-1 focus-visible:outline-3 focus-visible:outline-primary after:pointer-events-none after:absolute after:inset-0 after:rounded-sm after:border after:border-outline-variant/40"
+                        class="group state-layer relative aspect-square w-full overflow-hidden rounded-lg bg-surface-container-high text-left motion-safe:transition-transform motion-safe:duration-[350ms] motion-safe:ease-spring-fast motion-safe:hover:-translate-y-1 focus-visible:outline-3 focus-visible:outline-primary after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:border after:border-outline-variant/40"
                         style={`--poster-accent: ${game.accent_color || '#8c52ff'};`}
                         {...posterDataAttrs(game)}
                       >
@@ -693,19 +698,19 @@ function posterDataAttrs(item: FavoriteItem) {
                           <img
                             src={game.cover_url}
                             alt={`${game.title} cover art`}
-                            width={300}
-                            height={450}
+                            width={400}
+                            height={400}
                             loading="lazy"
                             referrerpolicy="no-referrer"
-                            class="h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-[350ms] motion-safe:ease-spring-fast motion-safe:group-hover:scale-[1.04]"
+                            class="h-full w-full object-cover object-[50%_8%] motion-safe:transition-transform motion-safe:duration-[350ms] motion-safe:ease-spring-fast motion-safe:group-hover:scale-[1.04]"
                           />
                         ) : (
                           <div
-                            class="flex h-full w-full flex-col justify-between p-2.5 sm:p-3"
+                            class="flex h-full w-full flex-col justify-between p-3 sm:p-4"
                             style="background: linear-gradient(155deg, color-mix(in srgb, var(--poster-accent) 26%, var(--md-sys-color-surface-container-high)) 0%, var(--md-sys-color-surface-container-low) 100%);"
                           >
                             <div class="flex items-start justify-between gap-1">
-                              <span class="text-label-sm font-bold text-on-surface/80">{monogram(game.title)}</span>
+                              <span class="text-label-md font-bold text-on-surface/80">{monogram(game.title)}</span>
                               {game.isSample && (
                                 <span class="rounded-xs border border-outline-variant/80 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
                                   Sample
@@ -713,16 +718,16 @@ function posterDataAttrs(item: FavoriteItem) {
                               )}
                             </div>
                             <div class="space-y-0.5">
-                              <p class="line-clamp-2 text-label-md text-on-surface">{game.title}</p>
+                              <p class="line-clamp-2 text-title-sm text-on-surface">{game.title}</p>
                               {game.subtitle && (
-                                <p class="line-clamp-1 text-[11px] text-on-surface-variant">{game.subtitle}</p>
+                                <p class="line-clamp-1 text-body-sm text-on-surface-variant">{game.subtitle}</p>
                               )}
                             </div>
                           </div>
                         )}
                         {game.cover_url && (
-                          <div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-2 opacity-90 transition-opacity duration-200 ease-effects-default group-hover:opacity-100">
-                            <p class="line-clamp-2 text-label-sm text-white">{game.title}</p>
+                          <div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent px-3 pt-10 pb-2.5 opacity-95 transition-opacity duration-200 ease-effects-default group-hover:opacity-100 sm:px-3.5 sm:pb-3">
+                            <p class="line-clamp-2 text-label-md text-white drop-shadow-xs sm:text-title-sm">{game.title}</p>
                           </div>
                         )}
                       </button>
@@ -755,7 +760,6 @@ function posterDataAttrs(item: FavoriteItem) {
                 )
               }
             </section>
-          </div>
         </div>
       </>
     )
@@ -903,7 +907,11 @@ function posterDataAttrs(item: FavoriteItem) {
     }
 
     for (const section of sections) {
-      section.hidden = filter !== 'all' && section.dataset.favSection !== filter;
+      const cat = section.dataset.favSection;
+      section.hidden = filter !== 'all' && cat !== filter;
+      if (cat && cat !== 'game') {
+        section.classList.toggle('lg:col-span-2', filter === cat);
+      }
     }
 
     if (liveStatus) {
