@@ -192,36 +192,36 @@ function posterDataAttrs(item: FavoriteItem) {
             </div>
           </section>
 
+          <div class="fav-pair grid gap-6 lg:col-span-2 lg:grid-cols-2 lg:gap-x-6 lg:gap-y-5" data-fav-pair>
           <!-- YouTube Channels -->
           <section
             aria-labelledby="channels-heading"
             data-fav-section="movie"
-            class="card-filled flex min-w-0 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
+            class="card-filled fav-pair-card flex min-w-0 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
           >
-              <div class="space-y-5">
-                <ExpressiveBadge shape="pill-tilted" tone="secondary" icon="youtube" />
+              <ExpressiveBadge shape="pill-tilted" tone="secondary" icon="youtube" class="self-start lg:justify-self-start" />
 
-                <div class="space-y-1.5">
-                  <div class="flex items-center justify-between gap-2">
-                    <SectionHeadingTag id="channels-heading" class="text-headline-sm text-on-surface text-balance">
-                      What I'm watching
-                    </SectionHeadingTag>
-                    <span class="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-outline-variant/70 px-2 py-0.5 text-label-sm text-on-surface-variant">
-                      <Icon name="youtube" class="size-3.5 text-primary" />
-                      <span>YouTube</span>
-                    </span>
-                  </div>
-                  <p class="text-body-md text-on-surface-variant text-pretty">
-                    Channels and creators I watch regularly. Select any channel for notes and a direct link.
-                  </p>
+              <div class="min-w-0 w-full space-y-1.5 lg:self-start">
+                <div class="flex items-center justify-between gap-2">
+                  <SectionHeadingTag id="channels-heading" class="text-headline-sm text-on-surface text-balance">
+                    What I'm watching
+                  </SectionHeadingTag>
+                  <span class="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-outline-variant/70 px-2 py-0.5 text-label-sm text-on-surface-variant">
+                    <Icon name="youtube" class="size-3.5 text-primary" />
+                    <span>YouTube</span>
+                  </span>
                 </div>
+                <p class="text-body-md text-on-surface-variant text-pretty">
+                  Channels and creators I watch regularly. Select any channel for notes and a direct link.
+                </p>
+              </div>
 
-                {movies.length === 0 ? (
-                  <div class="rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant">
-                    No YouTube channels published yet.
-                  </div>
-                ) : (
-                  <div class="flex flex-col gap-2">
+              {movies.length === 0 ? (
+                <div class="min-w-0 w-full rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant lg:self-start">
+                  No YouTube channels published yet.
+                </div>
+              ) : (
+                <div class="flex min-w-0 w-full flex-col gap-2 lg:self-start">
                     {movies.map((channel) => (
                       <button
                         type="button"
@@ -283,10 +283,9 @@ function posterDataAttrs(item: FavoriteItem) {
                     ))}
                   </div>
                 )}
-              </div>
               {
                 (youtubeSocial || isAdmin) && (
-                  <div class="mt-auto flex flex-wrap items-center justify-end gap-2 pt-1">
+                  <div class="mt-auto flex min-w-0 w-full flex-wrap items-center justify-end gap-2 pt-1 lg:self-end">
                     {youtubeSocial && (
                       <a
                         href={youtubeSocial.url}
@@ -314,28 +313,28 @@ function posterDataAttrs(item: FavoriteItem) {
           <section
             aria-labelledby="music-heading"
             data-fav-section="music"
-            class="card-filled flex min-w-0 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
+            class="card-filled fav-pair-card flex min-w-0 flex-col justify-between gap-5 rounded-xl p-5 sm:p-7"
           >
-            <div class="space-y-5">
-              <ExpressiveBadge shape="scallop" tone="secondary" icon="graphic-eq" />
+            <ExpressiveBadge shape="scallop" tone="secondary" icon="graphic-eq" class="self-start lg:justify-self-start" />
 
-              <div class="space-y-1.5">
-                <div class="flex items-center justify-between gap-2">
-                  <SectionHeadingTag id="music-heading" class="text-headline-sm text-on-surface text-balance">
-                    What I'm listening to
-                  </SectionHeadingTag>
-                  <span class="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-outline-variant/70 px-2 py-0.5 text-label-sm text-on-surface-variant">
-                    <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" class="size-3.5 text-primary">
-                      <path d="M14.131 22.948l-1.172-3.193c0 0-1.912 2.131-4.771 2.131-2.537 0-4.333-2.203-4.333-5.729 0-4.511 2.276-6.125 4.515-6.125 3.224 0 4.245 2.089 5.125 4.772l1.161 3.667c1.161 3.561 3.365 6.421 9.713 6.421 4.548 0 7.631-1.391 7.631-5.068 0-2.968-1.697-4.511-4.844-5.244l-2.344-0.511c-1.624-0.371-2.104-1.032-2.104-2.131 0-1.249 0.985-1.984 2.604-1.984 1.767 0 2.704 0.661 2.865 2.24l3.661-0.444c-0.297-3.301-2.584-4.656-6.323-4.656-3.308 0-6.532 1.251-6.532 5.245 0 2.5 1.204 4.077 4.245 4.807l2.484 0.589c1.865 0.443 2.484 1.224 2.484 2.287 0 1.359-1.323 1.921-3.828 1.921-3.703 0-5.244-1.943-6.124-4.625l-1.204-3.667c-1.541-4.765-4.005-6.531-8.891-6.531-5.287-0.016-8.151 3.385-8.151 9.192 0 5.573 2.864 8.595 8.005 8.595 4.14 0 6.125-1.943 6.125-1.943z" />
-                    </svg>
-                    <span>Last.fm</span>
-                  </span>
-                </div>
-                <p class="text-body-md text-on-surface-variant text-pretty">
-                  Live scrobble stream and tracks on rotation.
-                </p>
+            <div class="min-w-0 w-full space-y-1.5 lg:self-start">
+              <div class="flex items-center justify-between gap-2">
+                <SectionHeadingTag id="music-heading" class="text-headline-sm text-on-surface text-balance">
+                  What I'm listening to
+                </SectionHeadingTag>
+                <span class="inline-flex shrink-0 items-center gap-1.5 rounded-xs border border-outline-variant/70 px-2 py-0.5 text-label-sm text-on-surface-variant">
+                  <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" class="size-3.5 text-primary">
+                    <path d="M14.131 22.948l-1.172-3.193c0 0-1.912 2.131-4.771 2.131-2.537 0-4.333-2.203-4.333-5.729 0-4.511 2.276-6.125 4.515-6.125 3.224 0 4.245 2.089 5.125 4.772l1.161 3.667c1.161 3.561 3.365 6.421 9.713 6.421 4.548 0 7.631-1.391 7.631-5.068 0-2.968-1.697-4.511-4.844-5.244l-2.344-0.511c-1.624-0.371-2.104-1.032-2.104-2.131 0-1.249 0.985-1.984 2.604-1.984 1.767 0 2.704 0.661 2.865 2.24l3.661-0.444c-0.297-3.301-2.584-4.656-6.323-4.656-3.308 0-6.532 1.251-6.532 5.245 0 2.5 1.204 4.077 4.245 4.807l2.484 0.589c1.865 0.443 2.484 1.224 2.484 2.287 0 1.359-1.323 1.921-3.828 1.921-3.703 0-5.244-1.943-6.124-4.625l-1.204-3.667c-1.541-4.765-4.005-6.531-8.891-6.531-5.287-0.016-8.151 3.385-8.151 9.192 0 5.573 2.864 8.595 8.005 8.595 4.14 0 6.125-1.943 6.125-1.943z" />
+                  </svg>
+                  <span>Last.fm</span>
+                </span>
               </div>
+              <p class="text-body-md text-on-surface-variant text-pretty">
+                Live scrobble stream and tracks on rotation.
+              </p>
+            </div>
 
+            <div class="min-w-0 w-full space-y-5 lg:self-start">
               <!-- Live Last.fm Widget -->
               <div data-lfm-widget data-lfm-status-kind={lastFmResult.status} class="space-y-3">
                 <div
@@ -646,7 +645,7 @@ function posterDataAttrs(item: FavoriteItem) {
               )}
             </div>
 
-              <div class="mt-auto flex flex-wrap items-center justify-end gap-2 pt-1">
+              <div class="mt-auto flex min-w-0 w-full flex-wrap items-center justify-end gap-2 pt-1 lg:self-end">
                 <a
                   href={lastFmProfileUrl}
                   target="_blank"
@@ -661,6 +660,7 @@ function posterDataAttrs(item: FavoriteItem) {
                 </a>
               </div>
             </section>
+          </div>
 
             <!-- Games (Full-Width Showcase) -->
             <section
@@ -843,6 +843,22 @@ function posterDataAttrs(item: FavoriteItem) {
 </dialog>
 
 <style>
+  @media (width >= 64rem) {
+    /* Subgrid aligns badge, header, content start, and footer CTA across side-by-side cards. */
+    .fav-pair {
+      grid-template-rows: auto auto 1fr auto;
+    }
+
+    .fav-pair-card {
+      grid-row: span 4 / span 4;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto 1fr auto;
+      grid-template-rows: subgrid;
+      row-gap: 1.25rem;
+    }
+  }
+
   .eq-bars {
     display: inline-flex;
     align-items: flex-end;
@@ -894,6 +910,7 @@ function posterDataAttrs(item: FavoriteItem) {
   const filterGroup = favRoot?.querySelector<HTMLElement>('[data-fav-filters]');
   const filterButtons = Array.from(filterGroup?.querySelectorAll<HTMLButtonElement>('[data-fav-filter]') ?? []);
   const sections = Array.from(favRoot?.querySelectorAll<HTMLElement>('[data-fav-section]') ?? []);
+  const pairContainer = favRoot?.querySelector<HTMLElement>('[data-fav-pair]');
   const introSection = favRoot?.querySelector<HTMLElement>('[data-fav-intro]');
   const liveStatus = favRoot?.querySelector<HTMLElement>('[data-fav-live]');
 
@@ -904,6 +921,10 @@ function posterDataAttrs(item: FavoriteItem) {
 
     if (introSection) {
       introSection.hidden = filter !== 'all';
+    }
+
+    if (pairContainer) {
+      pairContainer.hidden = filter === 'game';
     }
 
     for (const section of sections) {
