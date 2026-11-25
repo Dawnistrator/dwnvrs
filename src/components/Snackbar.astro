@@ -1,6 +1,4 @@
 ---
-import Icon from './Icon.astro';
-
 interface Props {
   initialMessage?: string | null;
 }
@@ -8,70 +6,46 @@ interface Props {
 const { initialMessage = null } = Astro.props;
 ---
 
-<div
-  id="app-snackbar"
-  class="snackbar"
-  role="status"
-  aria-live="polite"
-  aria-atomic="true"
-  hidden={!initialMessage}
+<sakuga-toast
+  id="app-sakuga-toast"
+  class="sakuga-toast-host"
+  duration="4.5"
   data-initial-message={initialMessage ?? ''}
->
-  <span data-snackbar-text class="flex-1 py-2">
-    {initialMessage ?? ''}
-  </span>
-  <button type="button" class="icon-btn" aria-label="Dismiss notification" data-snackbar-close>
-    <Icon name="close" />
-  </button>
+></sakuga-toast>
+<div id="app-snackbar-sr" class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+  {initialMessage ?? ''}
 </div>
 
 <script>
-  const snackbar = document.getElementById('app-snackbar');
-  const textEl = snackbar?.querySelector<HTMLElement>('[data-snackbar-text]');
-  const closeBtn = snackbar?.querySelector<HTMLButtonElement>('[data-snackbar-close]');
-  let timer: number | undefined;
+  import { getSakugaFx } from '../lib/sakuga-bridge';
 
-  function hideSnackbar() {
-    if (!snackbar) return;
-    snackbar.hidden = true;
-    if (timer) {
-      window.clearTimeout(timer);
-      timer = undefined;
+  const toastEl = document.getElementById('app-sakuga-toast') as SakugaToastElement | null;
+  const srEl = document.getElementById('app-snackbar-sr');
+
+  async function showSnackbar(message: string) {
+    if (!toastEl || !message) return;
+    if (srEl) srEl.textContent = message;
+    if (!customElements.get('sakuga-toast')) {
+      await customElements.whenDefined('sakuga-toast');
     }
+    getSakugaFx();
+    toastEl.show(message);
   }
-
-  function scheduleHide() {
-    if (timer) window.clearTimeout(timer);
-    timer = window.setTimeout(hideSnackbar, 5000);
-  }
-
-  function showSnackbar(message: string) {
-    if (!snackbar || !textEl || !message) return;
-    textEl.textContent = message;
-    snackbar.hidden = false;
-    scheduleHide();
-  }
-
-  closeBtn?.addEventListener('click', hideSnackbar);
-  snackbar?.addEventListener('mouseenter', () => {
-    if (timer) window.clearTimeout(timer);
-  });
-  snackbar?.addEventListener('mouseleave', () => {
-    if (snackbar && !snackbar.hidden) scheduleHide();
-  });
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && snackbar && !snackbar.hidden) {
-      hideSnackbar();
+    if (e.key === 'Escape' && toastEl?.open) {
+      toastEl.hide();
     }
   });
 
   window.addEventListener('app:snackbar', ((e: CustomEvent<{ message?: string }>) => {
-    if (e.detail?.message) showSnackbar(e.detail.message);
+    if (e.detail?.message) {
+      void showSnackbar(e.detail.message);
+    }
   }) as EventListener);
 
-  const initial = snackbar?.getAttribute('data-initial-message');
+  const initial = toastEl?.getAttribute('data-initial-message');
   if (initial) {
-    scheduleHide();
+    void showSnackbar(initial);
   }
 </script>

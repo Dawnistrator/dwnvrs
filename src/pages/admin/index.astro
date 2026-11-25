@@ -73,6 +73,9 @@ if (saveSocialResult || deleteSocialResult || editSocialParam) {
   initialTab = 'sections';
 }
 
+const tabOrder = ['projects', 'socials', 'favorites', 'sections'] as const;
+const initialTabIndex = Math.max(0, tabOrder.indexOf(initialTab));
+
 const [projectsRes, socialsRes, favoritesRes, siteContentResult] = await Promise.all([
   supabase
     .from('projects')
@@ -194,6 +197,9 @@ if (saveProjectResult?.data) {
   robots="noindex, nofollow"
   snackbarMessage={snackbarMessage}
 >
+  <script slot="head" is:inline defer src="/sakuga-vfx/tabs.js"></script>
+  <script slot="head" is:inline defer src="/sakuga-vfx/checkbox.js"></script>
+  <script slot="head" is:inline defer src="/sakuga-vfx/tooltip.js"></script>
   <header class="sticky top-0 z-30 border-b border-outline-variant/50 bg-surface">
     <div class="container-page flex min-h-16 flex-wrap items-center justify-between gap-3 py-2">
       <div class="flex items-center gap-3">
@@ -233,61 +239,19 @@ if (saveProjectResult?.data) {
         </p>
       </div>
 
-      <!-- M3 Tab Bar -->
-      <div
-        role="tablist"
-        aria-label="Admin sections"
-        data-admin-tabs
-        class="inline-flex w-full flex-wrap rounded-full bg-surface-container p-1 sm:w-auto"
-      >
-        <button
-          id="tab-projects"
-          type="button"
-          role="tab"
-          aria-selected={initialTab === 'projects' ? 'true' : 'false'}
-          aria-controls="panel-projects"
-          tabindex={initialTab === 'projects' ? 0 : -1}
-          data-tab="projects"
-          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
+      <!-- Sakuga M3 Tab Bar -->
+      <div class="max-w-full overflow-x-auto pt-3 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <sakuga-tabs
+          class="sakuga-admin-tabs"
+          label="Admin sections"
+          selected={String(initialTabIndex)}
+          data-admin-tabs
         >
-          Projects ({projects.length})
-        </button>
-        <button
-          id="tab-socials"
-          type="button"
-          role="tab"
-          aria-selected={initialTab === 'socials' ? 'true' : 'false'}
-          aria-controls="panel-socials"
-          tabindex={initialTab === 'socials' ? 0 : -1}
-          data-tab="socials"
-          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
-        >
-          Socials ({socialLinks.length})
-        </button>
-        <button
-          id="tab-favorites"
-          type="button"
-          role="tab"
-          aria-selected={initialTab === 'favorites' ? 'true' : 'false'}
-          aria-controls="panel-favorites"
-          tabindex={initialTab === 'favorites' ? 0 : -1}
-          data-tab="favorites"
-          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
-        >
-          Favorites ({favoriteItems.length})
-        </button>
-        <button
-          id="tab-sections"
-          type="button"
-          role="tab"
-          aria-selected={initialTab === 'sections' ? 'true' : 'false'}
-          aria-controls="panel-sections"
-          tabindex={initialTab === 'sections' ? 0 : -1}
-          data-tab="sections"
-          class="state-layer flex-1 rounded-full min-h-11 px-4 text-label-lg transition-colors aria-selected:bg-secondary-container aria-selected:text-on-secondary-container text-on-surface-variant sm:flex-none sm:px-5"
-        >
-          Home sections
-        </button>
+          <option value="projects">Projects ({projects.length})</option>
+          <option value="socials">Socials ({socialLinks.length})</option>
+          <option value="favorites">Favorites ({favoriteItems.length})</option>
+          <option value="sections">Home sections</option>
+        </sakuga-tabs>
       </div>
     </div>
 
@@ -295,7 +259,7 @@ if (saveProjectResult?.data) {
     <section
       id="panel-projects"
       role="tabpanel"
-      aria-labelledby="tab-projects"
+      aria-label="Projects workspace"
       hidden={initialTab !== 'projects'}
       class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start"
     >
@@ -521,25 +485,21 @@ if (saveProjectResult?.data) {
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
-              <input
-                type="checkbox"
-                name="featured"
-                class="checkbox"
-                checked={editingProject?.featured ?? false}
-              />
-              <span>Featured on home</span>
-            </label>
+            <sakuga-checkbox
+              name="featured"
+              class="sakuga-admin-check"
+              checked={editingProject?.featured ? '' : undefined}
+            >
+              Featured on home
+            </sakuga-checkbox>
 
-            <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
-              <input
-                type="checkbox"
-                name="published"
-                class="checkbox"
-                checked={editingProject ? editingProject.published : true}
-              />
-              <span>Published</span>
-            </label>
+            <sakuga-checkbox
+              name="published"
+              class="sakuga-admin-check"
+              checked={(editingProject ? editingProject.published : true) ? '' : undefined}
+            >
+              Published
+            </sakuga-checkbox>
           </div>
 
           <div class="space-y-3 rounded-lg border border-outline-variant p-4">
@@ -563,10 +523,9 @@ if (saveProjectResult?.data) {
                     height={200}
                     class="aspect-[16/10] w-44 rounded-sm object-cover"
                   />
-                  <label class="inline-flex min-h-11 items-center gap-2 text-body-sm text-error">
-                    <input type="checkbox" name="remove_thumbnail" class="checkbox" />
-                    <span>Remove current thumbnail</span>
-                  </label>
+                  <sakuga-checkbox name="remove_thumbnail" class="sakuga-admin-check sakuga-admin-check--compact">
+                    Remove current thumbnail
+                  </sakuga-checkbox>
                 </div>
               )
             }
@@ -596,10 +555,9 @@ if (saveProjectResult?.data) {
                         height={150}
                         class="aspect-[16/10] w-full rounded-xs object-cover"
                       />
-                      <label class="flex min-h-11 items-center gap-2 text-body-sm text-error">
-                        <input type="checkbox" name="remove_gallery" value={url} class="checkbox" />
-                        <span>Remove</span>
-                      </label>
+                      <sakuga-checkbox name="remove_gallery" value={url} class="sakuga-admin-check sakuga-admin-check--compact">
+                        Remove
+                      </sakuga-checkbox>
                     </div>
                   ))}
                 </div>
@@ -708,7 +666,7 @@ if (saveProjectResult?.data) {
     <section
       id="panel-socials"
       role="tabpanel"
-      aria-labelledby="tab-socials"
+      aria-label="Socials workspace"
       hidden={initialTab !== 'socials'}
       class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start"
     >
@@ -882,15 +840,13 @@ if (saveProjectResult?.data) {
             </p>
           </div>
 
-          <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
-            <input
-              type="checkbox"
-              name="published"
-              class="checkbox"
-              checked={editingSocial ? editingSocial.published : true}
-            />
-            <span>Published (visible on /socials and home page)</span>
-          </label>
+          <sakuga-checkbox
+            name="published"
+            class="sakuga-admin-check"
+            checked={(editingSocial ? editingSocial.published : true) ? '' : undefined}
+          >
+            Published (visible on /socials and home page)
+          </sakuga-checkbox>
 
           <div class="flex flex-wrap items-center gap-3 pt-1">
             <button type="submit" class="btn btn-accent" data-social-submit>
@@ -996,7 +952,7 @@ if (saveProjectResult?.data) {
     <section
       id="panel-favorites"
       role="tabpanel"
-      aria-labelledby="tab-favorites"
+      aria-label="Favorites workspace"
       hidden={initialTab !== 'favorites'}
       class="space-y-6"
     >
@@ -1275,35 +1231,30 @@ if (saveProjectResult?.data) {
                           : 'aspect-[2/3] w-24 rounded-sm object-cover'
                       }
                     />
-                    <label class="inline-flex min-h-11 items-center gap-2 text-body-sm text-error">
-                      <input type="checkbox" name="remove_cover" class="checkbox" />
-                      <span>Remove current cover image</span>
-                    </label>
+                    <sakuga-checkbox name="remove_cover" class="sakuga-admin-check sakuga-admin-check--compact">
+                      Remove current cover image
+                    </sakuga-checkbox>
                   </div>
                 )
               }
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">
-              <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
-                <input
-                  type="checkbox"
-                  name="featured"
-                  class="checkbox"
-                  checked={editingFavorite?.featured ?? false}
-                />
-                <span>Spotlight / On Repeat</span>
-              </label>
+              <sakuga-checkbox
+                name="featured"
+                class="sakuga-admin-check"
+                checked={editingFavorite?.featured ? '' : undefined}
+              >
+                Spotlight / On Repeat
+              </sakuga-checkbox>
 
-              <label class="state-layer flex min-h-11 items-center gap-3 rounded-lg bg-surface-container-high px-4 py-2 text-body-md text-on-surface">
-                <input
-                  type="checkbox"
-                  name="published"
-                  class="checkbox"
-                  checked={editingFavorite ? editingFavorite.published : true}
-                />
-                <span>Published</span>
-              </label>
+              <sakuga-checkbox
+                name="published"
+                class="sakuga-admin-check"
+                checked={(editingFavorite ? editingFavorite.published : true) ? '' : undefined}
+              >
+                Published
+              </sakuga-checkbox>
             </div>
 
             <div class="flex flex-wrap items-center gap-3 pt-1">
@@ -1326,7 +1277,16 @@ if (saveProjectResult?.data) {
         <div class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="space-y-0.5">
-              <h2 class="text-headline-sm text-on-surface">Saved favorites</h2>
+              <div class="flex items-center gap-2">
+                <h2 class="text-headline-sm text-on-surface">Saved favorites</h2>
+                <sakuga-tooltip
+                  class="sakuga-help-tip"
+                  label="How reordering works"
+                  text="Drag cards or click the arrows to change the public display order. Changes save automatically."
+                >
+                  ?
+                </sakuga-tooltip>
+              </div>
               <p class="text-body-sm text-on-surface-variant">
                 Drag cards or use the up/down arrows to set display order on /favorites.
               </p>
@@ -1493,7 +1453,7 @@ if (saveProjectResult?.data) {
     <section
       id="panel-sections"
       role="tabpanel"
-      aria-labelledby="tab-sections"
+      aria-label="Home sections workspace"
       hidden={initialTab !== 'sections'}
       class="space-y-6"
     >
@@ -2213,24 +2173,23 @@ if (saveProjectResult?.data) {
   import { actions, isInputError } from 'astro:actions';
 
   /* ---------- Tabs ---------- */
-  const tabList = document.querySelector<HTMLElement>('[data-admin-tabs]');
-  const tabs = Array.from(tabList?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? []);
+  const tabEl = document.querySelector<SakugaTabsElement>('[data-admin-tabs]');
+  const tabNames = ['projects', 'socials', 'favorites', 'sections'] as const;
   const panels = new Map<string, HTMLElement>();
-  for (const tab of tabs) {
-    const targetId = tab.getAttribute('aria-controls');
-    const panel = targetId ? document.getElementById(targetId) : null;
-    if (tab.dataset.tab && panel) panels.set(tab.dataset.tab, panel);
+  for (const name of tabNames) {
+    const panel = document.getElementById(`panel-${name}`);
+    if (panel) panels.set(name, panel);
   }
 
-  function activateTab(tabName: string, moveFocus = false) {
-    for (const tab of tabs) {
-      const selected = tab.dataset.tab === tabName;
-      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
-      tab.tabIndex = selected ? 0 : -1;
-      if (selected && moveFocus) tab.focus();
-    }
+  function activateTab(tabName: string, syncTabs = true) {
     for (const [name, panel] of panels) {
       panel.hidden = name !== tabName;
+    }
+    if (syncTabs && tabEl) {
+      const idx = tabNames.indexOf(tabName as (typeof tabNames)[number]);
+      if (idx !== -1 && tabEl.selected !== idx) {
+        tabEl.selected = idx;
+      }
     }
     const url = new URL(window.location.href);
     if (tabName === 'projects') {
@@ -2241,35 +2200,21 @@ if (saveProjectResult?.data) {
     history.replaceState(null, '', url);
   }
 
-  tabList?.addEventListener('click', (e) => {
-    const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('[role="tab"]') : null;
-    if (btn?.dataset.tab) activateTab(btn.dataset.tab);
-  });
+  tabEl?.addEventListener('change', ((e: CustomEvent<{ index: number; value: string; label: string }>) => {
+    const nextTab = e.detail?.value;
+    if (nextTab) activateTab(nextTab, false);
+  }) as EventListener);
 
   for (const switchBtn of document.querySelectorAll<HTMLButtonElement>('[data-switch-tab]')) {
     switchBtn.addEventListener('click', () => {
       const target = switchBtn.dataset.switchTab;
       if (target) {
         activateTab(target, true);
+        tabEl?.shadowRoot?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
         window.scrollTo(0, 0);
       }
     });
   }
-
-  tabList?.addEventListener('keydown', (e) => {
-    const currentIndex = tabs.findIndex((t) => t === document.activeElement);
-    if (currentIndex === -1) return;
-    let nextIndex = -1;
-    if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
-    else if (e.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-    else if (e.key === 'Home') nextIndex = 0;
-    else if (e.key === 'End') nextIndex = tabs.length - 1;
-    if (nextIndex !== -1) {
-      e.preventDefault();
-      const targetTab = tabs[nextIndex]?.dataset.tab;
-      if (targetTab) activateTab(targetTab, true);
-    }
-  });
 
   /* ---------- Project Form ---------- */
   const projectForm = document.querySelector<HTMLFormElement>('[data-project-form]');

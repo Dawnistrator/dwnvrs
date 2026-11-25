@@ -148,4 +148,24 @@
   --md-sys-typescale-label-small-size: 0.6875rem;
   --md-sys-typescale-label-small-line-height: 1rem;
   --md-sys-typescale-label-small-tracking: 0.045em;
+
+  /* ---- Sakuga VFX (Dark M3 override; beats :where(:root) in core.js) ---- */
+  --sk-card: var(--md-sys-color-surface-container);
+  --sk-ink: var(--md-sys-color-on-surface);
+  --sk-dim: var(--md-sys-color-on-surface-variant);
+  --sk-soft: var(--md-sys-color-primary-container);
+  --sk-pri: var(--md-sys-color-primary);
+  --sk-pri-ink: var(--md-sys-color-on-primary);
+  --sk-acc: #ff5fa8;
+  --sk-track: var(--md-sys-color-surface-container-highest);
+  --sk-r: var(--md-sys-shape-corner-medium);
+  --sk-bw: 2px;
+  --sk-sh: 4px 5px 0 var(--sk-soft);
+  --sk-btn-sh: 4px 5px 0 var(--sk-soft);
+  --sk-btn-line: var(--md-sys-color-primary);
+  --sk-alt-sh: 3px 4px 0 var(--md-sys-color-outline-variant);
+  --sk-alt-line: var(--md-sys-color-outline);
+  --sk-tick: var(--sk-acc);
+  --sk-fill: var(--sk-acc);
+  --sk-on-pri: var(--md-sys-color-on-primary);
 }

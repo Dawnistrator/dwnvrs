@@ -22,6 +22,7 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
   hidePublicNav={true}
   robots="noindex, nofollow"
 >
+  <script slot="head" is:inline defer src="/sakuga-vfx/button.js"></script>
   <div class="container-page flex min-h-dvh flex-col items-center justify-center py-10">
     <div class="card-filled w-full max-w-md space-y-6 rounded-xl p-6 sm:p-8">
       <div class="space-y-2">
@@ -100,14 +101,15 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
         </div>
 
         <div class="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-          <button
+          <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
+          <sakuga-button
             type="submit"
-            disabled={!isSupabaseConfigured}
-            class="btn btn-accent w-full sm:w-auto"
+            disabled={!isSupabaseConfigured ? '' : undefined}
+            class="sakuga-login-btn w-full sm:w-auto"
             data-login-submit
           >
             Sign in
-          </button>
+          </sakuga-button>
           <a href="/" class="btn btn-text w-full sm:w-auto">
             <Icon name="arrow-back" />
             <span>Back to site</span>
@@ -125,7 +127,7 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
   if (form) {
     form.noValidate = true;
 
-    const submitBtn = form.querySelector<HTMLButtonElement>('[data-login-submit]');
+    const submitBtn = form.querySelector<SakugaButtonElement>('[data-login-submit]');
     const alertBox = form.querySelector<HTMLElement>('[data-login-alert]');
     const alertText = form.querySelector<HTMLElement>('[data-login-alert-text]');
 
@@ -167,6 +169,7 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
         submitBtn.textContent = 'Signing in...';
       }
 
+      let redirecting = false;
       try {
         const { data, error } = await actions.admin.login(new FormData(form));
         if (error) {
@@ -182,6 +185,15 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
         }
 
         if (data?.ok) {
+          redirecting = true;
+          if (submitBtn) {
+            submitBtn.textContent = 'Sign in';
+            submitBtn.done?.(0);
+          }
+          const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          if (!reduced) {
+            await new Promise((resolve) => window.setTimeout(resolve, 380));
+          }
           window.location.assign('/admin');
         }
       } catch {
@@ -190,7 +202,7 @@ const topError = loginResult?.error && !isInputError(loginResult.error) ? loginR
           alertBox.hidden = false;
         }
       } finally {
-        if (submitBtn) {
+        if (!redirecting && submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Sign in';
         }

@@ -115,6 +115,8 @@ const details = [
 </aside>
 
 <script>
+  import { triggerLanyardSakuga } from '../lib/sakuga-bridge';
+
   const rig = document.querySelector<HTMLElement>('[data-lanyard-rig]');
   const strap = document.querySelector<HTMLElement>('[data-lanyard-strap]');
   const payload = document.querySelector<HTMLElement>('[data-lanyard-payload]');
@@ -270,6 +272,7 @@ const details = [
         vx += 160;
         targetY = Math.min(56, maxPullY * 0.25);
         ensureAnimating();
+        triggerLanyardSakuga(card!, 'tap', 0, 0);
         window.setTimeout(() => {
           targetY = 0;
           ensureAnimating();
@@ -317,6 +320,8 @@ const details = [
 
     function releaseCard() {
       if (!dragging) return;
+      const releaseDx = px;
+      const releaseDy = py;
       dragging = false;
       hoverRect = null;
       card!.style.cursor = 'grab';
@@ -325,6 +330,7 @@ const details = [
       targetTiltX = 0;
       targetTiltY = 0;
       ensureAnimating();
+      triggerLanyardSakuga(card!, 'release', releaseDx, releaseDy);
     }
 
     card.addEventListener('pointerup', releaseCard);

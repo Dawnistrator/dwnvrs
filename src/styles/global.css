@@ -130,6 +130,7 @@
     font-family: var(--md-ref-typeface-plain);
     -webkit-font-smoothing: antialiased;
     scroll-padding-top: 5.5rem;
+    overflow-x: clip;
   }
 
   @media (width < 48rem) {
@@ -140,6 +141,7 @@
 
   body {
     min-height: 100dvh;
+    overflow-x: clip;
   }
 
   ::selection {
@@ -244,6 +246,15 @@
       border-radius: var(--md-sys-shape-corner-medium);
     }
 
+    [data-sakuga-spring='active'] {
+      transition-property: background-color, border-color, box-shadow, color, border-radius;
+    }
+
+    .btn[data-sakuga-spring='active']:not(:disabled, [aria-disabled='true']):active,
+    .chip-filter[data-sakuga-spring='active']:not(:disabled):active {
+      transform: none;
+    }
+
     .nav-pill {
       transition:
         background-color var(--md-sys-motion-spring-default-effects-duration) var(--md-sys-motion-spring-default-effects),
@@ -260,6 +271,16 @@
     width: 1.125rem;
     height: 1.125rem;
     flex: none;
+  }
+
+  .btn > canvas.back {
+    position: absolute;
+    left: -120px;
+    top: -120px;
+    width: calc(100% + 240px);
+    height: calc(100% + 240px);
+    pointer-events: none;
+    z-index: -1;
   }
 
   .btn:disabled,
@@ -645,6 +666,149 @@
       --bottom-bar-h: 5rem;
       padding-bottom: calc(var(--bottom-bar-h) + env(safe-area-inset-bottom, 0px));
     }
+  }
+
+  /* ---------- Sakuga VFX Custom Elements (Dark M3 theming via CSS tokens & ::part) ---------- */
+  sakuga-toast:not(:defined) {
+    display: none;
+  }
+
+  .sakuga-toast-host {
+    position: fixed;
+    left: 1rem;
+    bottom: calc(1.25rem + var(--bottom-bar-h, 0px) + env(safe-area-inset-bottom, 0px));
+    z-index: 50;
+    width: min(calc(100vw - 2rem), 23rem);
+    height: 3.5rem;
+    pointer-events: none;
+  }
+
+  .sakuga-toast-host::part(toast) {
+    width: min(calc(100vw - 2rem), 23rem);
+    min-height: 3.5rem;
+    pointer-events: auto;
+    font-family: var(--md-ref-typeface-plain);
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: var(--md-sys-shape-corner-medium);
+    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: 4px 5px 0 var(--md-sys-color-primary-container);
+  }
+
+  .sakuga-toast-host::part(close) {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    margin-right: -0.5rem;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .sakuga-admin-tabs {
+    display: inline-block;
+    max-width: 100%;
+    margin-top: 0.625rem;
+  }
+
+  .sakuga-admin-tabs::part(tabs) {
+    border-color: var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container);
+    box-shadow: 4px 5px 0 var(--md-sys-color-primary-container);
+  }
+
+  .sakuga-admin-tabs::part(indicator) {
+    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-secondary-container);
+  }
+
+  .sakuga-admin-tabs::part(tab) {
+    min-height: 2.75rem;
+    padding-inline: 0.75rem;
+    font-family: var(--md-ref-typeface-plain);
+    font-size: 0.8125rem;
+    color: var(--md-sys-color-on-surface);
+    border-left-color: var(--md-sys-color-outline-variant);
+  }
+
+  @media (width >= 40rem) {
+    .sakuga-admin-tabs::part(tab) {
+      padding-inline: 1rem;
+      font-size: 0.875rem;
+    }
+  }
+
+  .sakuga-admin-check {
+    display: flex;
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .sakuga-admin-check::part(label) {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    font-family: var(--md-ref-typeface-plain);
+    font-size: 0.875rem;
+  }
+
+  .sakuga-admin-check::part(box) {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--md-sys-shape-corner-small);
+    border-color: var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    box-shadow: 2px 3px 0 var(--md-sys-color-primary-container);
+  }
+
+  .sakuga-admin-check--compact::part(label) {
+    padding: 0.25rem 0;
+    background: transparent;
+    color: var(--md-sys-color-error);
+    font-size: 0.875rem;
+  }
+
+  /* Color the login button via host tokens so button.js's 190ms .inv impact invert frame remains intact. */
+  .sakuga-login-btn {
+    --sk-card: var(--md-sys-color-accent);
+    --sk-ink: var(--md-sys-color-on-accent);
+    --sk-btn-line: var(--md-sys-color-primary);
+    --sk-btn-sh: 4px 5px 0 var(--md-sys-color-primary-container);
+    --sk-r: 1.375rem;
+  }
+
+  .sakuga-login-btn::part(button) {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.75rem 1.75rem;
+    font-family: var(--md-ref-typeface-brand);
+    font-style: normal;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    letter-spacing: 0.005em;
+  }
+
+  .sakuga-help-tip {
+    margin-top: 0;
+    vertical-align: middle;
+    --sk-card: var(--md-sys-color-surface-container-highest);
+    --sk-ink: var(--md-sys-color-on-surface);
+    --sk-soft: var(--md-sys-color-primary-container);
+  }
+
+  .sakuga-help-tip::part(button) {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-family: var(--md-ref-typeface-brand);
+    font-size: 0.9375rem;
+  }
+
+  .sakuga-help-tip::part(tip) {
+    font-family: var(--md-ref-typeface-plain);
+    font-size: 0.8125rem;
+    font-weight: 600;
   }
 }
 
