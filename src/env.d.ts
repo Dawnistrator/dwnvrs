@@ -80,6 +80,8 @@ interface SakugaFXApi {
   sfx(name: 'don' | 'gogo' | 'kachi' | 'pon' | 'shu' | 'zuza', x: number, y: number, opts?: { size?: number; rot?: number; life?: number; col?: string; edge?: string; dots?: boolean }): void;
   hollow(): { col: string; edge: string };
   dotted(): { dots: boolean; edge: string };
+  readonly g: CanvasRenderingContext2D | null;
+  blob(cs: number[][], lw?: number, _?: unknown, opts?: { lx?: number; arcs?: boolean; deep?: number }): void;
   at(el: Element, fx?: number, fy?: number): SakugaPoint;
   Base: { prototype: { backLayer(): unknown } };
 }

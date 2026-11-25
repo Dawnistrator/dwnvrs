@@ -251,7 +251,8 @@
     }
 
     .btn[data-sakuga-spring='active']:not(:disabled, [aria-disabled='true']):active,
-    .chip-filter[data-sakuga-spring='active']:not(:disabled):active {
+    .chip-filter[data-sakuga-spring='active']:not(:disabled):active,
+    .nav-pill[data-sakuga-spring='active']:active {
       transform: none;
     }
 
@@ -810,6 +811,27 @@
     font-size: 0.8125rem;
     font-weight: 600;
   }
+}
+
+/* Keep navbar indicator and active transparency outside @layer components so Tailwind v4 @layer utilities cannot re-paint a second pill background. */
+.nav-pill-indicator {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background-color: var(--md-sys-color-secondary-container);
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: center center;
+}
+
+[data-desktop-nav][data-sakuga-nav='ready'] .nav-pill-indicator {
+  opacity: 1;
+}
+
+[data-desktop-nav][data-sakuga-nav='ready'] .nav-pill[aria-current='page'] {
+  background-color: transparent;
 }
 
 @keyframes expressive-badge-spin {
