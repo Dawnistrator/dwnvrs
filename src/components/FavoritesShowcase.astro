@@ -846,7 +846,7 @@ function posterDataAttrs(item: FavoriteItem) {
   <div class="space-y-5">
     <div
       data-dialog-fav-banner
-      class="relative flex h-24 items-end gap-4 overflow-hidden rounded-lg border border-outline-variant/40 p-3.5"
+      class="relative flex min-h-24 items-center gap-3 rounded-lg border border-outline-variant/40 p-3 sm:gap-4 sm:p-4"
       style="background: linear-gradient(125deg, color-mix(in srgb, #8c52ff 32%, var(--md-sys-color-surface-container)) 0%, var(--md-sys-color-surface-container-low) 100%);"
     >
       <img
@@ -856,16 +856,23 @@ function posterDataAttrs(item: FavoriteItem) {
         width={96}
         height={96}
         referrerpolicy="no-referrer"
-        class="hidden size-16 shrink-0 rounded-sm border border-outline-variant/50 object-cover"
+        class="hidden size-16 shrink-0 rounded-sm border border-outline-variant/50 object-cover sm:size-18"
       />
       <div
         data-dialog-fav-monogram
         aria-hidden="true"
-        class="flex size-16 shrink-0 items-center justify-center rounded-sm border border-outline-variant/50 bg-surface-container-highest text-title-lg font-bold text-on-surface"
+        class="flex size-16 shrink-0 items-center justify-center rounded-sm border border-outline-variant/50 bg-surface-container-highest text-title-lg font-bold text-on-surface sm:size-18"
       >
         DA
       </div>
-      <div class="min-w-0 flex-1 space-y-1">
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <DialogHeadingTag
+          id="fav-dialog-title"
+          data-dialog-fav-title
+          class="text-title-lg text-on-surface text-balance break-words"
+        >
+          Favorite title
+        </DialogHeadingTag>
         <div class="flex flex-wrap items-center gap-2">
           <span
             data-dialog-fav-category
@@ -885,14 +892,9 @@ function posterDataAttrs(item: FavoriteItem) {
       </div>
     </div>
 
-    <div class="space-y-2">
-      <DialogHeadingTag id="fav-dialog-title" data-dialog-fav-title class="text-headline-sm text-on-surface text-balance">
-        Favorite title
-      </DialogHeadingTag>
-      <p id="fav-dialog-review" data-dialog-fav-review class="text-body-md leading-relaxed text-on-surface-variant text-pretty">
-        Notes about this pick.
-      </p>
-    </div>
+    <p id="fav-dialog-review" data-dialog-fav-review class="text-body-md leading-relaxed text-on-surface-variant text-pretty">
+      Notes about this pick.
+    </p>
 
     <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
       <a
