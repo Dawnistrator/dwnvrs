@@ -602,6 +602,8 @@
   }
 
   .m3-dialog::backdrop {
+    overflow: hidden;
+    overscroll-behavior: contain;
     background: color-mix(in srgb, var(--md-sys-color-scrim) 72%, transparent);
   }
 
@@ -832,6 +834,13 @@
 
 [data-desktop-nav][data-sakuga-nav='ready'] .nav-pill[aria-current='page'] {
   background-color: transparent;
+}
+
+/* Keep modal centering outside @layer components so parent space-y-* utilities cannot overwrite margin-block: auto. */
+.m3-dialog:modal {
+  inset: 0;
+  margin: auto;
+  overscroll-behavior: contain;
 }
 
 @keyframes expressive-badge-spin {
