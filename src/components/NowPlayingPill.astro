@@ -1,9 +1,13 @@
 ---
-import { getLastFmNowPlaying } from '../lib/lastfm';
+import { getLastFmNowPlaying, type LastFmResult } from '../lib/lastfm';
 import { monogram } from '../lib/projects';
 import Icon from './Icon.astro';
 
-const result = await getLastFmNowPlaying();
+interface Props {
+  result?: LastFmResult;
+}
+
+const result = Astro.props.result ?? (await getLastFmNowPlaying());
 ---
 
 {
@@ -48,7 +52,7 @@ const result = await getLastFmNowPlaying();
         <div class="flex items-center gap-1.5">
           <span
             data-pill-eq
-            data-playing={result.status === 'ok' && result.track.nowPlaying ? 'true' : 'false'}
+            data-playing={result.status === 'ok' && result.track.nowPlaying && !result.stale ? 'true' : 'false'}
             class="pill-eq"
             aria-hidden="true"
           >
@@ -139,51 +143,67 @@ const result = await getLastFmNowPlaying();
     return letters.toUpperCase();
   }
 
+  type PillLastFmPayload =
+    | {
+        status: 'ok';
+        stale?: boolean;
+        track: {
+          title: string;
+          artist: string;
+          coverUrl: string | null;
+          nowPlaying: boolean;
+          relativeTime: string;
+        };
+      }
+    | { status: 'empty' | 'not-configured' | 'error' };
+
+  function applyPillPayload(payload: PillLastFmPayload) {
+    if (!pill) return;
+    pill.dataset.lfmState = payload.status;
+    if (payload.status !== 'ok') return;
+
+    const t = payload.track;
+    pill.setAttribute('aria-label', `${t.relativeTime}: ${t.title} by ${t.artist}. Open Favorites page`);
+    if (pillStatus) pillStatus.textContent = t.relativeTime;
+    if (pillTrack) pillTrack.textContent = `${t.title} · ${t.artist}`;
+    if (pillEq) pillEq.dataset.playing = t.nowPlaying && !payload.stale ? 'true' : 'false';
+
+    if (pillCover && pillMono) {
+      if (t.coverUrl && /^https?:\/\//i.test(t.coverUrl)) {
+        pillCover.src = t.coverUrl;
+        pillCover.classList.remove('hidden');
+        pillMono.classList.add('hidden');
+      } else {
+        pillCover.removeAttribute('src');
+        pillCover.classList.add('hidden');
+        pillMono.textContent = pillMonogram(t.title);
+        pillMono.classList.remove('hidden');
+      }
+    }
+  }
+
   async function refreshHomePill() {
     if (!pill) return;
     try {
       const res = await fetch('/api/now-playing.json', { headers: { Accept: 'application/json' } });
       if (!res.ok) return;
-      const payload = (await res.json()) as
-        | {
-            status: 'ok';
-            track: {
-              title: string;
-              artist: string;
-              coverUrl: string | null;
-              nowPlaying: boolean;
-              relativeTime: string;
-            };
-          }
-        | { status: 'empty' | 'not-configured' | 'error' };
-
-      if (payload.status !== 'ok') return;
-      const t = payload.track;
-      pill.setAttribute('aria-label', `${t.relativeTime}: ${t.title} by ${t.artist}. Open Favorites page`);
-      if (pillStatus) pillStatus.textContent = t.relativeTime;
-      if (pillTrack) pillTrack.textContent = `${t.title} · ${t.artist}`;
-      if (pillEq) pillEq.dataset.playing = t.nowPlaying ? 'true' : 'false';
-
-      if (pillCover && pillMono) {
-        if (t.coverUrl) {
-          pillCover.src = t.coverUrl;
-          pillCover.classList.remove('hidden');
-          pillMono.classList.add('hidden');
-        } else {
-          pillCover.src = '';
-          pillCover.classList.add('hidden');
-          pillMono.textContent = pillMonogram(t.title);
-          pillMono.classList.remove('hidden');
-        }
-      }
+      const payload = (await res.json()) as PillLastFmPayload;
+      applyPillPayload(payload);
     } catch {
       /* keep current SSR state */
     }
   }
 
   if (pill) {
-    window.setInterval(() => {
-      if (document.visibilityState === 'visible') refreshHomePill();
-    }, 20_000);
+    window.addEventListener('app:lastfm', (event) => {
+      const payload = (event as CustomEvent<PillLastFmPayload>).detail;
+      if (payload) applyPillPayload(payload);
+    });
+
+    if (!document.querySelector('[data-favorites-root]')) {
+      window.setInterval(() => {
+        if (document.visibilityState === 'visible') refreshHomePill();
+      }, 20_000);
+    }
   }
 </script>

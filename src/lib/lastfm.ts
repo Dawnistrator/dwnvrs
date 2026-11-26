@@ -14,10 +14,10 @@ export interface LastFmTrack {
 }
 
 export type LastFmResult =
-  | { status: 'ok'; track: LastFmTrack; recentTracks: LastFmTrack[] }
+  | { status: 'ok'; track: LastFmTrack; recentTracks: LastFmTrack[]; stale?: boolean }
   | { status: 'empty'; username: string; profileUrl: string }
   | { status: 'not-configured' }
-  | { status: 'error'; message: string };
+  | { status: 'error'; message: string; profileUrl: string; retryable: boolean };
 
 interface LastFmApiImage {
   size?: string;
@@ -42,15 +42,36 @@ interface LastFmRecentTracksPayload {
   };
 }
 
+type LastFmOkResult = Extract<LastFmResult, { status: 'ok' }>;
+
 const LASTFM_DEFAULT_IMAGE_HASH = '2a96cbd8b46e442fc41c2b86b821562f';
 const CACHE_TTL_MS = 15_000;
+const ERROR_CACHE_TTL_MS = 10_000;
+const STALE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 let cachedResult: LastFmResult | null = null;
 let cachedAt = 0;
 let cachedKey = '';
 
+let lastGoodResult: LastFmOkResult | null = null;
+let lastGoodAt = 0;
+let lastGoodKey = '';
+
+let inFlightRequest: { key: string; promise: Promise<LastFmResult> } | null = null;
+
+/** Reset cached Last.fm state for tests and diagnostics. */
+export function clearLastFmCache(): void {
+  cachedResult = null;
+  cachedAt = 0;
+  cachedKey = '';
+  lastGoodResult = null;
+  lastGoodAt = 0;
+  lastGoodKey = '';
+  inFlightRequest = null;
+}
+
 function readEnv(key: 'LASTFM_API_KEY' | 'LASTFM_USERNAME' | 'PUBLIC_LASTFM_USERNAME'): string {
-  const fromImportMeta = import.meta.env[key];
+  const fromImportMeta = (import.meta as { env?: Record<string, string | undefined> }).env?.[key];
   const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
   const fromProcess = proc?.env?.[key];
   return (fromImportMeta ?? fromProcess ?? '').trim();
@@ -106,63 +127,102 @@ function mapApiTrack(raw: LastFmApiTrack, username: string, profileUrl: string):
   };
 }
 
-/**
- * Fetch the owner's active and recent Last.fm scrobbles on the server.
- * Keeps LASTFM_API_KEY out of client bundles and caches briefly to respect rate limits.
- */
-export async function getLastFmNowPlaying(forceRefresh = false): Promise<LastFmResult> {
-  const apiKey = readEnv('LASTFM_API_KEY');
-  const username = readEnv('LASTFM_USERNAME') || readEnv('PUBLIC_LASTFM_USERNAME');
+function hydrateOkResult(base: LastFmOkResult, stale = false): LastFmOkResult {
+  const hydrateTrack = (item: LastFmTrack): LastFmTrack => {
+    const nowPlaying = stale ? false : item.nowPlaying;
+    return {
+      ...item,
+      nowPlaying,
+      relativeTime: formatRelativePlayTime(item.playedAtUts, nowPlaying),
+    };
+  };
 
-  if (
-    !apiKey ||
-    !username ||
-    apiKey === 'your-lastfm-api-key' ||
-    username === 'your-lastfm-username'
-  ) {
-    return { status: 'not-configured' };
+  return {
+    status: 'ok',
+    track: hydrateTrack(base.track),
+    recentTracks: base.recentTracks.map(hydrateTrack),
+    ...(stale ? { stale: true } : {}),
+  };
+}
+
+function classifyLastFmFailure(
+  status: number,
+  payload?: LastFmRecentTracksPayload | null,
+): { message: string; retryable: boolean } {
+  const apiError = payload?.error;
+  if (status >= 500 || apiError === 8 || apiError === 11 || apiError === 16) {
+    return {
+      message: 'Last.fm is having a temporary server issue. Retry in a moment or open the profile directly.',
+      retryable: true,
+    };
+  }
+  if (status === 429 || apiError === 29) {
+    return {
+      message: 'Last.fm rate limit reached. Activity will refresh shortly.',
+      retryable: true,
+    };
+  }
+  if (status === 401 || status === 403 || apiError === 6 || apiError === 10 || apiError === 26) {
+    const detail = payload?.message?.trim();
+    return {
+      message: detail ? `Last.fm rejected the request (${detail}).` : `Last.fm returned HTTP ${status}.`,
+      retryable: false,
+    };
+  }
+  return {
+    message: 'Could not load Last.fm scrobbles right now. Retry in a moment or open the profile directly.',
+    retryable: true,
+  };
+}
+
+function resolveFailure(
+  cacheKey: string,
+  profileUrl: string,
+  message: string,
+  retryable: boolean,
+): LastFmResult {
+  if (retryable && lastGoodResult && lastGoodKey === cacheKey && Date.now() - lastGoodAt < STALE_MAX_AGE_MS) {
+    const staleResult = hydrateOkResult(lastGoodResult, true);
+    cachedResult = staleResult;
+    cachedAt = Date.now();
+    cachedKey = cacheKey;
+    return staleResult;
   }
 
-  const cacheKey = `${username}:${apiKey.slice(0, 6)}`;
-  if (!forceRefresh && cachedResult && cachedKey === cacheKey && Date.now() - cachedAt < CACHE_TTL_MS) {
-    if (cachedResult.status === 'ok') {
-      return {
-        status: 'ok',
-        track: {
-          ...cachedResult.track,
-          relativeTime: formatRelativePlayTime(cachedResult.track.playedAtUts, cachedResult.track.nowPlaying),
-        },
-        recentTracks: cachedResult.recentTracks.map((item) => ({
-          ...item,
-          relativeTime: formatRelativePlayTime(item.playedAtUts, item.nowPlaying),
-        })),
-      };
-    }
-    return cachedResult;
-  }
+  const errorResult: LastFmResult = { status: 'error', message, profileUrl, retryable };
+  cachedResult = errorResult;
+  cachedAt = Date.now();
+  cachedKey = cacheKey;
+  return errorResult;
+}
 
-  const profileUrl = `https://www.last.fm/user/${encodeURIComponent(username)}`;
+async function fetchFreshLastFm(
+  cacheKey: string,
+  username: string,
+  apiKey: string,
+  profileUrl: string,
+): Promise<LastFmResult> {
   const endpoint = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(username)}&api_key=${encodeURIComponent(apiKey)}&limit=6&format=json`;
 
   try {
     const response = await fetch(endpoint, {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'dwnvrs-portfolio/1.0',
+      },
       signal: AbortSignal.timeout(4000),
     });
 
-    if (!response.ok) {
-      return {
-        status: 'error',
-        message: `Last.fm returned HTTP ${response.status}.`,
-      };
+    let payload: LastFmRecentTracksPayload | null = null;
+    try {
+      payload = (await response.json()) as LastFmRecentTracksPayload;
+    } catch {
+      payload = null;
     }
 
-    const payload = (await response.json()) as LastFmRecentTracksPayload;
-    if (payload.error || !payload.recenttracks) {
-      return {
-        status: 'error',
-        message: payload.message ?? 'Last.fm returned an unexpected response.',
-      };
+    if (!response.ok || !payload || payload.error || !payload.recenttracks) {
+      const failure = classifyLastFmFailure(response.status, payload);
+      return resolveFailure(cacheKey, profileUrl, failure.message, failure.retryable);
     }
 
     const rawTracks = payload.recenttracks.track;
@@ -191,18 +251,79 @@ export async function getLastFmNowPlaying(forceRefresh = false): Promise<LastFmR
       if (recentTracks.length >= 4) break;
     }
 
-    const result: LastFmResult = {
+    const result: LastFmOkResult = {
       status: 'ok',
       track,
       recentTracks,
     };
 
+    lastGoodResult = result;
+    lastGoodAt = Date.now();
+    lastGoodKey = cacheKey;
     cachedResult = result;
     cachedAt = Date.now();
     cachedKey = cacheKey;
     return result;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unable to reach Last.fm.';
-    return { status: 'error', message };
+  } catch {
+    return resolveFailure(
+      cacheKey,
+      profileUrl,
+      'Could not reach Last.fm right now. Retry in a moment or open the profile directly.',
+      true,
+    );
   }
+}
+
+/**
+ * Fetch the owner's active and recent Last.fm scrobbles on the server.
+ * Keeps LASTFM_API_KEY out of client bundles and caches briefly to respect rate limits.
+ */
+export async function getLastFmNowPlaying(forceRefresh = false): Promise<LastFmResult> {
+  const apiKey = readEnv('LASTFM_API_KEY');
+  const username = readEnv('LASTFM_USERNAME') || readEnv('PUBLIC_LASTFM_USERNAME');
+
+  if (
+    !apiKey ||
+    !username ||
+    apiKey === 'your-lastfm-api-key' ||
+    username === 'your-lastfm-username'
+  ) {
+    return { status: 'not-configured' };
+  }
+
+  const cacheKey = `${username}:${apiKey.slice(0, 6)}`;
+  if (!forceRefresh && cachedResult && cachedKey === cacheKey) {
+    const ttl =
+      cachedResult.status === 'error' || (cachedResult.status === 'ok' && cachedResult.stale)
+        ? ERROR_CACHE_TTL_MS
+        : CACHE_TTL_MS;
+    if (Date.now() - cachedAt < ttl) {
+      if (cachedResult.status === 'ok') {
+        return hydrateOkResult(cachedResult, Boolean(cachedResult.stale));
+      }
+      return cachedResult;
+    }
+  }
+
+  if (!forceRefresh && inFlightRequest && inFlightRequest.key === cacheKey) {
+    return inFlightRequest.promise;
+  }
+
+  const profileUrl = `https://www.last.fm/user/${encodeURIComponent(username)}`;
+  let promise!: Promise<LastFmResult>;
+  promise = (async () => {
+    try {
+      return await fetchFreshLastFm(cacheKey, username, apiKey, profileUrl);
+    } finally {
+      if (inFlightRequest?.promise === promise) {
+        inFlightRequest = null;
+      }
+    }
+  })();
+
+  if (!forceRefresh) {
+    inFlightRequest = { key: cacheKey, promise };
+  }
+
+  return promise;
 }

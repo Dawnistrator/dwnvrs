@@ -64,7 +64,7 @@ const musicSocial = findSocialByKeywords(['last.fm', 'spotify', 'soundcloud', 'a
 const lastFmProfileUrl =
   lastFmResult.status === 'ok'
     ? lastFmResult.track.profileUrl
-    : lastFmResult.status === 'empty'
+    : lastFmResult.status === 'empty' || lastFmResult.status === 'error'
       ? lastFmResult.profileUrl
       : musicSocial?.url ?? 'https://www.last.fm';
 
@@ -96,7 +96,14 @@ function posterDataAttrs(item: FavoriteItem) {
 }
 ---
 
-<div class="space-y-8" data-favorites-root>
+<div
+  class="space-y-8"
+  data-favorites-root
+  data-base-games={games.length}
+  data-base-movies={movies.length}
+  data-base-music={music.length}
+  data-has-custom-music={hasCustomMusic ? 'true' : 'false'}
+>
   {
     favoritesResult.status === 'fallback' && (
       <div
@@ -148,7 +155,7 @@ function posterDataAttrs(item: FavoriteItem) {
               >
                 <Icon name="check" class="chip-check" />
                 <span>{option.label}</span>
-                <span class="tabular-nums text-[11px] opacity-75 sm:text-label-md">({option.count})</span>
+                <span class="tabular-nums text-[11px] opacity-75 sm:text-label-md" data-fav-count={option.id}>({option.count})</span>
               </button>
             ))}
           </div>
@@ -187,7 +194,7 @@ function posterDataAttrs(item: FavoriteItem) {
               <div class="flex flex-wrap gap-2 pt-1 lg:shrink-0 lg:justify-end">
                 <span class="chip-assist tabular-nums">{games.length} Games</span>
                 <span class="chip-assist tabular-nums">{movies.length} Channels</span>
-                <span class="chip-assist tabular-nums">{effectiveMusicCount} Tracks</span>
+                <span class="chip-assist tabular-nums" data-fav-stat="music">{effectiveMusicCount} Tracks</span>
               </div>
             </div>
           </section>
@@ -334,9 +341,9 @@ function posterDataAttrs(item: FavoriteItem) {
               </p>
             </div>
 
-            <div class="min-w-0 w-full space-y-5 lg:self-start">
+            <div class="flex min-w-0 w-full flex-col gap-4 lg:self-start">
               <!-- Live Last.fm Widget -->
-              <div data-lfm-widget data-lfm-status-kind={lastFmResult.status} class="space-y-3">
+              <div data-lfm-widget data-lfm-status-kind={lastFmResult.status} class="flex flex-col gap-3">
                 <div
                   data-lfm-live-card
                   hidden={lastFmResult.status !== 'ok'}
@@ -354,7 +361,7 @@ function posterDataAttrs(item: FavoriteItem) {
                       <img
                         data-lfm-cover
                         crossorigin="anonymous"
-                        src={lastFmResult.status === 'ok' && lastFmResult.track.coverUrl ? lastFmResult.track.coverUrl : ''}
+                        src={lastFmResult.status === 'ok' && lastFmResult.track.coverUrl ? lastFmResult.track.coverUrl : undefined}
                         alt={
                           lastFmResult.status === 'ok'
                             ? `${lastFmResult.track.title} album cover`
@@ -384,7 +391,7 @@ function posterDataAttrs(item: FavoriteItem) {
                       <div class="flex flex-wrap items-center gap-2">
                         <span
                           data-lfm-eq
-                          data-playing={lastFmResult.status === 'ok' && lastFmResult.track.nowPlaying ? 'true' : 'false'}
+                          data-playing={lastFmResult.status === 'ok' && lastFmResult.track.nowPlaying && !lastFmResult.stale ? 'true' : 'false'}
                           class="eq-bars"
                           aria-hidden="true"
                         >
@@ -437,216 +444,232 @@ function posterDataAttrs(item: FavoriteItem) {
                   hidden={lastFmResult.status !== 'error'}
                   class="flex flex-col gap-3 rounded-lg border border-error/70 bg-surface-container-low p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div class="space-y-0.5">
-                    <p class="text-label-lg text-error">Unable to load Last.fm activity</p>
-                    <p data-lfm-error-text class="text-body-sm text-on-surface-variant">
-                      {lastFmResult.status === 'error' ? lastFmResult.message : 'Check your Last.fm connection.'}
-                    </p>
+                  <div class="flex min-w-0 items-start gap-2.5">
+                    <Icon name="error" class="mt-0.5 size-5 shrink-0 text-error" />
+                    <div class="min-w-0 space-y-0.5">
+                      <p class="text-label-lg text-error">Last.fm activity unavailable</p>
+                      <p data-lfm-error-text class="text-body-sm text-on-surface-variant text-pretty">
+                        {lastFmResult.status === 'error' ? lastFmResult.message : 'Check your Last.fm connection.'}
+                      </p>
+                    </div>
                   </div>
-                  <button type="button" class="btn btn-outlined shrink-0" data-lfm-retry>
+                  <button
+                    type="button"
+                    class="btn btn-outlined self-start shrink-0 sm:self-center"
+                    data-lfm-retry
+                    data-idle-label="Retry"
+                  >
                     Retry
                   </button>
                 </div>
               </div>
 
-              {music.length === 0 && lastFmRecentTracks.length === 0 && lastFmResult.status !== 'ok' ? (
-                <div class="rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant">
-                  No music tracks or albums published yet.
-                </div>
-              ) : (
-                <div class="space-y-3">
-                  {lastFmRecentTracks.length > 0 && (
-                    <div data-lfm-recent-list class="flex flex-col gap-0.5 overflow-hidden rounded-lg">
-                      {lastFmRecentTracks.map((recent) => (
-                        <button
-                          type="button"
-                          aria-label={`View details for ${recent.title}`}
-                          class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-xs bg-surface-container-low px-3.5 py-3 text-left transition-colors duration-200 ease-effects-default hover:bg-surface-container-high"
-                          data-fav-trigger="true"
-                          data-title={recent.title}
-                          data-subtitle={recent.album ? `${recent.artist} · ${recent.album}` : recent.artist}
-                          data-review={`Scrobbled via Last.fm (@${recent.username}) · ${recent.relativeTime}.`}
-                          data-category="Recent scrobble"
-                          data-cover={recent.coverUrl ?? ''}
-                          data-url={recent.url}
-                          data-accent="#8c52ff"
-                          data-sample="false"
-                        >
-                          <div class="size-11 shrink-0 overflow-hidden rounded-sm bg-surface-container-high">
-                            <img
-                              data-recent-cover
-                              src={recent.coverUrl ?? ''}
-                              alt={`${recent.title} cover art`}
-                              width={88}
-                              height={88}
-                              loading="lazy"
-                              class:list={['h-full w-full object-cover', !recent.coverUrl && 'hidden']}
-                            />
-                            <div
-                              data-recent-monogram
-                              aria-hidden="true"
-                              class:list={[
-                                'flex h-full w-full items-center justify-center bg-secondary-container text-label-lg font-bold text-on-secondary-container',
-                                recent.coverUrl && 'hidden',
-                              ]}
-                            >
-                              {monogram(recent.title)}
-                            </div>
-                          </div>
+              <div
+                data-music-empty-state
+                hidden={!(music.length === 0 && lastFmResult.status === 'not-configured')}
+                class="rounded-lg bg-surface-container-low p-5 text-body-md text-on-surface-variant"
+              >
+                No music tracks or albums published yet.
+              </div>
 
-                          <div class="min-w-0 flex-1 space-y-0.5">
-                            <div class="flex items-center justify-between gap-2">
-                              <span class="truncate text-title-md text-on-surface group-hover:text-primary">
-                                {recent.title}
-                              </span>
-                              <span class="shrink-0 text-label-sm tabular-nums text-on-surface-variant">
-                                {recent.relativeTime}
-                              </span>
-                            </div>
-                            <p class="truncate text-body-sm text-on-surface-variant">
-                              {recent.album ? `${recent.artist} · ${recent.album}` : recent.artist}
-                            </p>
-                          </div>
-
-                          <span class="inline-flex size-9 shrink-0 items-center justify-center text-on-surface-variant">
-                            <Icon name="open-in-new" class="size-4.5" />
-                          </span>
-                        </button>
-                      ))}
+              <div
+                data-lfm-recent-list
+                hidden={lastFmRecentTracks.length === 0}
+                class="flex flex-col gap-0.5 overflow-hidden rounded-lg"
+              >
+                {lastFmRecentTracks.map((recent) => (
+                  <button
+                    type="button"
+                    aria-label={`View details for ${recent.title}`}
+                    class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-xs bg-surface-container-low px-3.5 py-3 text-left transition-colors duration-200 ease-effects-default hover:bg-surface-container-high"
+                    data-fav-trigger="true"
+                    data-title={recent.title}
+                    data-subtitle={recent.album ? `${recent.artist} · ${recent.album}` : recent.artist}
+                    data-review={`Scrobbled via Last.fm (@${recent.username}) · ${recent.relativeTime}.`}
+                    data-category="Recent scrobble"
+                    data-cover={recent.coverUrl ?? ''}
+                    data-url={recent.url}
+                    data-accent="#8c52ff"
+                    data-sample="false"
+                  >
+                    <div class="size-11 shrink-0 overflow-hidden rounded-sm bg-surface-container-high">
+                      <img
+                        data-recent-cover
+                        src={recent.coverUrl || undefined}
+                        alt={recent.coverUrl ? `${recent.title} cover art` : ''}
+                        width={88}
+                        height={88}
+                        loading="lazy"
+                        class:list={['h-full w-full object-cover', !recent.coverUrl && 'hidden']}
+                      />
+                      <div
+                        data-recent-monogram
+                        aria-hidden="true"
+                        class:list={[
+                          'flex h-full w-full items-center justify-center bg-secondary-container text-label-lg font-bold text-on-secondary-container',
+                          recent.coverUrl && 'hidden',
+                        ]}
+                      >
+                        {monogram(recent.title)}
+                      </div>
                     </div>
-                  )}
 
-                  {spotlightMusic && (
+                    <div class="min-w-0 flex-1 space-y-0.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <span data-recent-title class="truncate text-title-md text-on-surface group-hover:text-primary">
+                          {recent.title}
+                        </span>
+                        <span data-recent-time class="shrink-0 text-label-sm tabular-nums text-on-surface-variant">
+                          {recent.relativeTime}
+                        </span>
+                      </div>
+                      <p data-recent-subtitle class="truncate text-body-sm text-on-surface-variant">
+                        {recent.album ? `${recent.artist} · ${recent.album}` : recent.artist}
+                      </p>
+                    </div>
+
+                    <span class="inline-flex size-9 shrink-0 items-center justify-center text-on-surface-variant">
+                      <Icon name="open-in-new" class="size-4.5" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {spotlightMusic && (
+                <button
+                  type="button"
+                  aria-label={`View details for ${spotlightMusic.title}`}
+                  class="state-layer group flex w-full items-center gap-4 rounded-lg border border-outline-variant/40 p-4 text-left transition-colors duration-200 ease-effects-default hover:border-outline"
+                  style={`background: color-mix(in srgb, ${spotlightMusic.accent_color || '#8c52ff'} 16%, var(--md-sys-color-surface-container-high));`}
+                  {...posterDataAttrs(spotlightMusic)}
+                >
+                  <div class="relative size-20 shrink-0 overflow-hidden rounded-md bg-surface-container-lowest">
+                    {spotlightMusic.cover_url ? (
+                      <img
+                        src={spotlightMusic.cover_url}
+                        alt={`${spotlightMusic.title} cover art`}
+                        width={160}
+                        height={160}
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                        class="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        class="flex h-full w-full items-center justify-center text-title-lg font-bold text-on-surface"
+                        style={`background: color-mix(in srgb, ${spotlightMusic.accent_color || '#8c52ff'} 32%, var(--md-sys-color-surface-container));`}
+                      >
+                        {monogram(spotlightMusic.title)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div class="min-w-0 flex-1 space-y-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="eq-bars" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                      <span class="text-label-sm text-primary">On repeat</span>
+                      {spotlightMusic.isSample && (
+                        <span class="rounded-xs border border-outline-variant px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
+                          Sample
+                        </span>
+                      )}
+                    </div>
+                    <ItemHeadingTag class="truncate text-title-lg text-on-surface group-hover:text-primary">
+                      {spotlightMusic.title}
+                    </ItemHeadingTag>
+                    {spotlightMusic.subtitle && (
+                      <p class="truncate text-body-sm text-on-surface-variant">{spotlightMusic.subtitle}</p>
+                    )}
+                  </div>
+
+                  <span class="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant">
+                    <Icon name="open-in-new" class="size-5" />
+                  </span>
+                </button>
+              )}
+
+              {tracklistMusic.length > 0 && (
+                <div class="flex flex-col gap-0.5 overflow-hidden rounded-lg">
+                  {tracklistMusic.map((track) => (
                     <button
                       type="button"
-                      aria-label={`View details for ${spotlightMusic.title}`}
-                      class="state-layer group flex w-full items-center gap-4 rounded-lg border border-outline-variant/40 p-4 text-left transition-colors duration-200 ease-effects-default hover:border-outline"
-                      style={`background: color-mix(in srgb, ${spotlightMusic.accent_color || '#8c52ff'} 16%, var(--md-sys-color-surface-container-high));`}
-                      {...posterDataAttrs(spotlightMusic)}
+                      aria-label={`View details for ${track.title}`}
+                      class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-xs bg-surface-container-low px-3.5 py-3 text-left transition-colors duration-200 ease-effects-default hover:bg-surface-container-high"
+                      {...posterDataAttrs(track)}
                     >
-                      <div class="relative size-20 shrink-0 overflow-hidden rounded-md bg-surface-container-lowest">
-                        {spotlightMusic.cover_url ? (
+                      <div class="size-11 shrink-0 overflow-hidden rounded-sm bg-surface-container-high">
+                        {track.cover_url ? (
                           <img
-                            src={spotlightMusic.cover_url}
-                            alt={`${spotlightMusic.title} cover art`}
-                            width={160}
-                            height={160}
+                            src={track.cover_url}
+                            alt={`${track.title} cover art`}
+                            width={88}
+                            height={88}
                             loading="lazy"
                             referrerpolicy="no-referrer"
                             class="h-full w-full object-cover"
                           />
                         ) : (
                           <div
-                            class="flex h-full w-full items-center justify-center text-title-lg font-bold text-on-surface"
-                            style={`background: color-mix(in srgb, ${spotlightMusic.accent_color || '#8c52ff'} 32%, var(--md-sys-color-surface-container));`}
+                            class="flex h-full w-full items-center justify-center text-label-lg font-bold text-on-surface"
+                            style={`background: color-mix(in srgb, ${track.accent_color || '#8c52ff'} 26%, var(--md-sys-color-surface-container-high));`}
                           >
-                            {monogram(spotlightMusic.title)}
+                            {monogram(track.title)}
                           </div>
                         )}
                       </div>
 
-                      <div class="min-w-0 flex-1 space-y-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <span class="eq-bars" aria-hidden="true">
-                            <span />
-                            <span />
-                            <span />
+                      <div class="min-w-0 flex-1 space-y-0.5">
+                        <div class="flex items-center gap-2">
+                          <span class="truncate text-title-md text-on-surface group-hover:text-primary">
+                            {track.title}
                           </span>
-                          <span class="text-label-sm text-primary">On repeat</span>
-                          {spotlightMusic.isSample && (
-                            <span class="rounded-xs border border-outline-variant px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
+                          {track.isSample && (
+                            <span class="shrink-0 rounded-xs border border-outline-variant px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
                               Sample
                             </span>
                           )}
                         </div>
-                        <ItemHeadingTag class="truncate text-title-lg text-on-surface group-hover:text-primary">
-                          {spotlightMusic.title}
-                        </ItemHeadingTag>
-                        {spotlightMusic.subtitle && (
-                          <p class="truncate text-body-sm text-on-surface-variant">{spotlightMusic.subtitle}</p>
+                        {track.subtitle && (
+                          <p class="truncate text-body-sm text-on-surface-variant">{track.subtitle}</p>
                         )}
                       </div>
 
-                      <span class="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant">
-                        <Icon name="open-in-new" class="size-5" />
+                      <span class="inline-flex size-9 shrink-0 items-center justify-center text-on-surface-variant">
+                        <Icon name="open-in-new" class="size-4.5" />
                       </span>
                     </button>
-                  )}
-
-                  {tracklistMusic.length > 0 && (
-                    <div class="flex flex-col gap-0.5 overflow-hidden rounded-lg">
-                      {tracklistMusic.map((track) => (
-                        <button
-                          type="button"
-                          aria-label={`View details for ${track.title}`}
-                          class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-xs bg-surface-container-low px-3.5 py-3 text-left transition-colors duration-200 ease-effects-default hover:bg-surface-container-high"
-                          {...posterDataAttrs(track)}
-                        >
-                          <div class="size-11 shrink-0 overflow-hidden rounded-sm bg-surface-container-high">
-                            {track.cover_url ? (
-                              <img
-                                src={track.cover_url}
-                                alt={`${track.title} cover art`}
-                                width={88}
-                                height={88}
-                                loading="lazy"
-                                referrerpolicy="no-referrer"
-                                class="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div
-                                class="flex h-full w-full items-center justify-center text-label-lg font-bold text-on-surface"
-                                style={`background: color-mix(in srgb, ${track.accent_color || '#8c52ff'} 26%, var(--md-sys-color-surface-container-high));`}
-                              >
-                                {monogram(track.title)}
-                              </div>
-                            )}
-                          </div>
-
-                          <div class="min-w-0 flex-1 space-y-0.5">
-                            <div class="flex items-center gap-2">
-                              <span class="truncate text-title-md text-on-surface group-hover:text-primary">
-                                {track.title}
-                              </span>
-                              {track.isSample && (
-                                <span class="shrink-0 rounded-xs border border-outline-variant px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-surface-variant">
-                                  Sample
-                                </span>
-                              )}
-                            </div>
-                            {track.subtitle && (
-                              <p class="truncate text-body-sm text-on-surface-variant">{track.subtitle}</p>
-                            )}
-                          </div>
-
-                          <span class="inline-flex size-9 shrink-0 items-center justify-center text-on-surface-variant">
-                            <Icon name="open-in-new" class="size-4.5" />
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  <div
-                    data-lfm-setup
-                    hidden={lastFmResult.status !== 'not-configured'}
-                    class="flex flex-col gap-3 rounded-lg border border-outline-variant/60 bg-surface-container-low p-3.5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <p class="text-body-sm text-on-surface-variant text-pretty">
-                      Last.fm live scrobbling is ready: add <code>LASTFM_USERNAME</code> and{' '}
-                      <code>LASTFM_API_KEY</code> in <code>.env</code> to stream real-time playback.
-                    </p>
-                    <button type="button" class="btn btn-outlined min-h-11 shrink-0 px-4" data-lfm-retry>
-                      Check connection
-                    </button>
-                  </div>
-                  <p data-lfm-status-msg class="sr-only" aria-live="polite" />
+                  ))}
                 </div>
               )}
+
+              <div
+                data-lfm-setup
+                hidden={lastFmResult.status !== 'not-configured'}
+                class="flex flex-col gap-3 rounded-lg border border-outline-variant/60 bg-surface-container-low p-3.5 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <p class="text-body-sm text-on-surface-variant text-pretty">
+                  Last.fm live scrobbling is ready: add <code>LASTFM_USERNAME</code> and{' '}
+                  <code>LASTFM_API_KEY</code> in <code>.env</code> to stream real-time playback.
+                </p>
+                <button
+                  type="button"
+                  class="btn btn-outlined min-h-11 shrink-0 px-4"
+                  data-lfm-retry
+                  data-idle-label="Check connection"
+                >
+                  Check connection
+                </button>
+              </div>
+              <p data-lfm-status-msg class="sr-only" aria-live="polite" />
             </div>
 
               <div class="mt-auto flex min-w-0 w-full flex-wrap items-center justify-end gap-2 pt-1 lg:self-end">
                 <a
+                  data-lfm-profile-link
                   href={lastFmProfileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -765,6 +788,53 @@ function posterDataAttrs(item: FavoriteItem) {
     )
   }
 </div>
+
+<template data-lfm-recent-row-template>
+  <button
+    type="button"
+    aria-label="View track details"
+    class="state-layer group flex min-h-14 w-full items-center gap-3.5 rounded-xs bg-surface-container-low px-3.5 py-3 text-left transition-colors duration-200 ease-effects-default hover:bg-surface-container-high"
+    data-fav-trigger="true"
+    data-title=""
+    data-subtitle=""
+    data-review=""
+    data-category="Recent scrobble"
+    data-cover=""
+    data-url=""
+    data-accent="#8c52ff"
+    data-sample="false"
+  >
+    <div class="size-11 shrink-0 overflow-hidden rounded-sm bg-surface-container-high">
+      <img
+        data-recent-cover
+        alt=""
+        width={88}
+        height={88}
+        loading="lazy"
+        class="hidden h-full w-full object-cover"
+      />
+      <div
+        data-recent-monogram
+        aria-hidden="true"
+        class="flex h-full w-full items-center justify-center bg-secondary-container text-label-lg font-bold text-on-secondary-container"
+      >
+        FM
+      </div>
+    </div>
+
+    <div class="min-w-0 flex-1 space-y-0.5">
+      <div class="flex items-center justify-between gap-2">
+        <span data-recent-title class="truncate text-title-md text-on-surface group-hover:text-primary"></span>
+        <span data-recent-time class="shrink-0 text-label-sm tabular-nums text-on-surface-variant"></span>
+      </div>
+      <p data-recent-subtitle class="truncate text-body-sm text-on-surface-variant"></p>
+    </div>
+
+    <span class="inline-flex size-9 shrink-0 items-center justify-center text-on-surface-variant">
+      <Icon name="open-in-new" class="size-4.5" />
+    </span>
+  </button>
+</template>
 
 <!-- Rich Detail Dialog (inspired by bignut.zip gm3-rich-tooltip) -->
 <dialog
@@ -1005,7 +1075,7 @@ function posterDataAttrs(item: FavoriteItem) {
         dialogCover.classList.remove('hidden');
         dialogMonogram.classList.add('hidden');
       } else {
-        dialogCover.src = '';
+        dialogCover.removeAttribute('src');
         dialogCover.alt = '';
         dialogCover.classList.add('hidden');
         dialogMonogram.textContent = toMonogram(title);
@@ -1040,9 +1110,12 @@ function posterDataAttrs(item: FavoriteItem) {
     dialogCloseBtn?.focus();
   }
 
-  for (const trigger of favRoot?.querySelectorAll<HTMLElement>('[data-fav-trigger]') ?? []) {
-    trigger.addEventListener('click', () => openFavoriteDialog(trigger));
-  }
+  favRoot?.addEventListener('click', (e) => {
+    const trigger = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-fav-trigger]') : null;
+    if (trigger && favRoot.contains(trigger)) {
+      openFavoriteDialog(trigger);
+    }
+  });
 
   dialogCloseBtn?.addEventListener('click', () => dialog?.close());
 
@@ -1060,13 +1133,24 @@ function posterDataAttrs(item: FavoriteItem) {
   });
 
   /* ---------- Live Last.fm Scrobble Polling ---------- */
+  const baseGamesCount = Number.parseInt(favRoot?.dataset.baseGames ?? '0', 10) || 0;
+  const baseMoviesCount = Number.parseInt(favRoot?.dataset.baseMovies ?? '0', 10) || 0;
+  const baseMusicCount = Number.parseInt(favRoot?.dataset.baseMusic ?? '0', 10) || 0;
+  const hasCustomMusic = favRoot?.dataset.hasCustomMusic === 'true';
+  const allCountEl = favRoot?.querySelector<HTMLElement>('[data-fav-count="all"]');
+  const musicCountEl = favRoot?.querySelector<HTMLElement>('[data-fav-count="music"]');
+  const musicStatEl = favRoot?.querySelector<HTMLElement>('[data-fav-stat="music"]');
+
   const lfmWidget = favRoot?.querySelector<HTMLElement>('[data-lfm-widget]');
   const lfmLiveCard = lfmWidget?.querySelector<HTMLElement>('[data-lfm-live-card]');
   const lfmEmpty = lfmWidget?.querySelector<HTMLElement>('[data-lfm-empty]');
   const lfmError = lfmWidget?.querySelector<HTMLElement>('[data-lfm-error]');
   const lfmErrorText = lfmWidget?.querySelector<HTMLElement>('[data-lfm-error-text]');
   const lfmSetup = favRoot?.querySelector<HTMLElement>('[data-lfm-setup]');
+  const musicEmptyState = favRoot?.querySelector<HTMLElement>('[data-music-empty-state]');
   const lfmStatusMsg = favRoot?.querySelector<HTMLElement>('[data-lfm-status-msg]');
+  const lfmProfileLink = favRoot?.querySelector<HTMLAnchorElement>('[data-lfm-profile-link]');
+  const recentRowTemplate = document.querySelector<HTMLTemplateElement>('[data-lfm-recent-row-template]');
 
   const lfmLink = lfmWidget?.querySelector<HTMLAnchorElement>('[data-lfm-link]');
   const lfmCover = lfmWidget?.querySelector<HTMLImageElement>('[data-lfm-cover]');
@@ -1086,19 +1170,26 @@ function posterDataAttrs(item: FavoriteItem) {
     nowPlaying: boolean;
     relativeTime: string;
     username: string;
+    profileUrl?: string;
   };
 
   type ClientLastFmResponse =
     | {
         status: 'ok';
+        stale?: boolean;
         track: ClientLastFmTrack;
         recentTracks?: ClientLastFmTrack[];
       }
-    | { status: 'empty'; username: string }
+    | { status: 'empty'; username: string; profileUrl?: string }
     | { status: 'not-configured' }
-    | { status: 'error'; message: string };
+    | { status: 'error'; message: string; profileUrl?: string; retryable?: boolean };
 
   const lfmRecentList = favRoot?.querySelector<HTMLElement>('[data-lfm-recent-list]');
+  let hasLoadedOk = lfmWidget?.dataset.lfmStatusKind === 'ok';
+
+  function safeHttpUrl(raw: string | null | undefined): string {
+    return raw && /^https?:\/\//i.test(raw) ? raw : '';
+  }
 
   function extractVibrantHex(img: HTMLImageElement): string | null {
     try {
@@ -1154,71 +1245,130 @@ function posterDataAttrs(item: FavoriteItem) {
     }
   }
 
-  function syncRecentTracksList(tracks: ClientLastFmTrack[]) {
-    if (!lfmRecentList || tracks.length === 0) return;
-    const rows = Array.from(lfmRecentList.querySelectorAll<HTMLButtonElement>('[data-fav-trigger]'));
-    tracks.slice(0, rows.length).forEach((item, idx) => {
-      const btn = rows[idx];
-      if (!btn) return;
-      const subtitle = item.album ? `${item.artist} · ${item.album}` : item.artist;
-      btn.setAttribute('aria-label', `View details for ${item.title}`);
-      btn.dataset.title = item.title;
-      btn.dataset.subtitle = subtitle;
-      btn.dataset.review = `Scrobbled via Last.fm (@${item.username}) · ${item.relativeTime}.`;
-      btn.dataset.cover = item.coverUrl ?? '';
-      btn.dataset.url = item.url;
+  function populateRecentTrackRow(btn: HTMLButtonElement, item: ClientLastFmTrack) {
+    const subtitle = item.album ? `${item.artist} · ${item.album}` : item.artist;
+    const safeUrl = safeHttpUrl(item.url) || 'https://www.last.fm';
+    const safeCover = safeHttpUrl(item.coverUrl);
 
-      const titleSpan = btn.querySelector<HTMLElement>('.text-title-md');
-      if (titleSpan) titleSpan.textContent = item.title;
-      const timeSpan = btn.querySelector<HTMLElement>('.tabular-nums');
-      if (timeSpan) timeSpan.textContent = item.relativeTime;
-      const subEl = btn.querySelector<HTMLElement>('.text-body-sm');
-      if (subEl) subEl.textContent = subtitle;
-      const img = btn.querySelector<HTMLImageElement>('[data-recent-cover]');
-      const mono = btn.querySelector<HTMLElement>('[data-recent-monogram]');
-      if (img && mono) {
-        if (item.coverUrl) {
-          img.src = item.coverUrl;
-          img.alt = `${item.title} cover art`;
-          img.classList.remove('hidden');
-          mono.classList.add('hidden');
-        } else {
-          img.src = '';
-          img.classList.add('hidden');
-          mono.textContent = toMonogram(item.title);
-          mono.classList.remove('hidden');
-        }
+    btn.setAttribute('aria-label', `View details for ${item.title}`);
+    btn.dataset.title = item.title;
+    btn.dataset.subtitle = subtitle;
+    btn.dataset.review = `Scrobbled via Last.fm (@${item.username}) · ${item.relativeTime}.`;
+    btn.dataset.cover = safeCover;
+    btn.dataset.url = safeUrl;
+
+    const titleSpan = btn.querySelector<HTMLElement>('[data-recent-title]');
+    if (titleSpan) titleSpan.textContent = item.title;
+    const timeSpan = btn.querySelector<HTMLElement>('[data-recent-time]');
+    if (timeSpan) timeSpan.textContent = item.relativeTime;
+    const subEl = btn.querySelector<HTMLElement>('[data-recent-subtitle]');
+    if (subEl) subEl.textContent = subtitle;
+
+    const img = btn.querySelector<HTMLImageElement>('[data-recent-cover]');
+    const mono = btn.querySelector<HTMLElement>('[data-recent-monogram]');
+    if (img && mono) {
+      if (safeCover) {
+        img.src = safeCover;
+        img.alt = `${item.title} cover art`;
+        img.classList.remove('hidden');
+        mono.classList.add('hidden');
+      } else {
+        img.removeAttribute('src');
+        img.alt = '';
+        img.classList.add('hidden');
+        mono.textContent = toMonogram(item.title);
+        mono.classList.remove('hidden');
       }
-    });
+    }
   }
 
-  function renderLastFmState(payload: ClientLastFmResponse) {
+  function syncRecentTracksList(tracks: ClientLastFmTrack[]) {
+    if (!lfmRecentList) return;
+    const capped = tracks.slice(0, 4);
+    const rows = Array.from(lfmRecentList.querySelectorAll<HTMLButtonElement>('[data-fav-trigger]'));
+
+    if (capped.length === 0) {
+      for (const row of rows) row.remove();
+      lfmRecentList.hidden = true;
+      return;
+    }
+
+    while (rows.length < capped.length && recentRowTemplate) {
+      const fragment = recentRowTemplate.content.cloneNode(true) as DocumentFragment;
+      const cloned = fragment.querySelector<HTMLButtonElement>('[data-fav-trigger]');
+      if (!cloned) break;
+      lfmRecentList.appendChild(cloned);
+      rows.push(cloned);
+    }
+
+    while (rows.length > capped.length) {
+      rows.pop()?.remove();
+    }
+
+    capped.forEach((item, idx) => {
+      const btn = rows[idx];
+      if (btn) populateRecentTrackRow(btn, item);
+    });
+    lfmRecentList.hidden = false;
+  }
+
+  function updateMusicCounts(payload: ClientLastFmResponse) {
+    if (hasCustomMusic) return;
+    const effectiveMusicCount =
+      payload.status === 'ok'
+        ? 1 + Math.min(4, Array.isArray(payload.recentTracks) ? payload.recentTracks.length : 0)
+        : baseMusicCount;
+
+    if (musicCountEl) musicCountEl.textContent = `(${effectiveMusicCount})`;
+    if (allCountEl) allCountEl.textContent = `(${baseGamesCount + baseMoviesCount + effectiveMusicCount})`;
+    if (musicStatEl) musicStatEl.textContent = `${effectiveMusicCount} Tracks`;
+  }
+
+  function renderLastFmState(payload: ClientLastFmResponse, manual = false) {
     if (!lfmWidget) return;
+    if (payload.status === 'error' && hasLoadedOk && !manual) {
+      return;
+    }
+
+    hasLoadedOk = payload.status === 'ok';
     lfmWidget.dataset.lfmStatusKind = payload.status;
 
     if (lfmLiveCard) lfmLiveCard.hidden = payload.status !== 'ok';
     if (lfmEmpty) lfmEmpty.hidden = payload.status !== 'empty';
     if (lfmError) lfmError.hidden = payload.status !== 'error';
     if (lfmSetup) lfmSetup.hidden = payload.status !== 'not-configured';
+    if (musicEmptyState) {
+      musicEmptyState.hidden = !(baseMusicCount === 0 && payload.status === 'not-configured');
+    }
+
+    if (lfmProfileLink && 'profileUrl' in payload) {
+      const safeProfileUrl = safeHttpUrl(payload.profileUrl);
+      if (safeProfileUrl) lfmProfileLink.href = safeProfileUrl;
+    }
 
     if (payload.status === 'ok') {
       const t = payload.track;
-      if (lfmLink) lfmLink.href = t.url;
+      const safeTrackUrl = safeHttpUrl(t.url) || 'https://www.last.fm';
+      const safeProfileUrl = safeHttpUrl(t.profileUrl);
+      const safeCoverUrl = safeHttpUrl(t.coverUrl);
+
+      if (lfmProfileLink && safeProfileUrl) lfmProfileLink.href = safeProfileUrl;
+      if (lfmLink) lfmLink.href = safeTrackUrl;
       if (lfmTitle) lfmTitle.textContent = t.title;
       if (lfmSubtitle) lfmSubtitle.textContent = t.album ? `${t.artist} · ${t.album}` : t.artist;
       if (lfmStatusLabel) lfmStatusLabel.textContent = t.relativeTime;
       if (lfmUser) lfmUser.textContent = `@${t.username}`;
-      if (lfmEq) lfmEq.dataset.playing = t.nowPlaying ? 'true' : 'false';
+      if (lfmEq) lfmEq.dataset.playing = t.nowPlaying && !payload.stale ? 'true' : 'false';
 
       if (lfmCover && lfmMonogram) {
-        if (t.coverUrl) {
-          lfmCover.src = t.coverUrl;
+        if (safeCoverUrl) {
+          lfmCover.src = safeCoverUrl;
           lfmCover.alt = `${t.title} album cover`;
           lfmCover.classList.remove('hidden');
           lfmMonogram.classList.add('hidden');
           if (lfmCover.complete && lfmCover.naturalWidth > 0) applyCoverPalette(lfmCover);
         } else {
-          lfmCover.src = '';
+          lfmCover.removeAttribute('src');
           lfmCover.classList.add('hidden');
           lfmMonogram.textContent = toMonogram(t.title);
           lfmMonogram.classList.remove('hidden');
@@ -1226,14 +1376,28 @@ function posterDataAttrs(item: FavoriteItem) {
         }
       }
 
-      if (Array.isArray(payload.recentTracks)) {
-        syncRecentTracksList(payload.recentTracks);
+      syncRecentTracksList(Array.isArray(payload.recentTracks) ? payload.recentTracks : []);
+    } else {
+      if (payload.status === 'empty' && lfmEmpty) {
+        lfmEmpty.textContent = `Connected to Last.fm (@${payload.username}), but no recent scrobbles were found yet.`;
+      } else if (payload.status === 'error' && lfmErrorText) {
+        lfmErrorText.textContent = payload.message;
       }
-    } else if (payload.status === 'empty' && lfmEmpty) {
-      lfmEmpty.textContent = `Connected to Last.fm (@${payload.username}), but no recent scrobbles were found yet.`;
-    } else if (payload.status === 'error' && lfmErrorText) {
-      lfmErrorText.textContent = payload.message;
+      syncRecentTracksList([]);
     }
+
+    updateMusicCounts(payload);
+    window.dispatchEvent(new CustomEvent('app:lastfm', { detail: payload }));
+  }
+
+  function announceLastFmStatus(msg: string) {
+    if (lfmStatusMsg) {
+      lfmStatusMsg.textContent = '';
+      window.requestAnimationFrame(() => {
+        if (lfmStatusMsg) lfmStatusMsg.textContent = msg;
+      });
+    }
+    window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: msg } }));
   }
 
   let lfmInFlight = false;
@@ -1244,7 +1408,11 @@ function posterDataAttrs(item: FavoriteItem) {
 
     const retryButtons = Array.from(favRoot?.querySelectorAll<HTMLButtonElement>('[data-lfm-retry]') ?? []);
     if (manual) {
-      for (const btn of retryButtons) btn.disabled = true;
+      for (const btn of retryButtons) {
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.textContent = btn.dataset.idleLabel === 'Check connection' ? 'Checking...' : 'Retrying...';
+      }
     }
 
     try {
@@ -1253,29 +1421,34 @@ function posterDataAttrs(item: FavoriteItem) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const payload = (await res.json()) as ClientLastFmResponse;
-      renderLastFmState(payload);
+      renderLastFmState(payload, manual);
 
       if (manual) {
         const msg =
           payload.status === 'ok'
-            ? `Updated from Last.fm: ${payload.track.title} by ${payload.track.artist}.`
+            ? payload.stale
+              ? 'Last.fm is temporarily unavailable. Showing your last synced track.'
+              : `Updated from Last.fm: ${payload.track.title} by ${payload.track.artist}.`
             : payload.status === 'not-configured'
               ? 'Last.fm is not configured yet. Add LASTFM_USERNAME and LASTFM_API_KEY in .env.'
               : payload.status === 'empty'
                 ? 'Last.fm connected, no recent scrobbles yet.'
                 : payload.message;
-        if (lfmStatusMsg) lfmStatusMsg.textContent = msg;
-        window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: msg } }));
+        announceLastFmStatus(msg);
       }
     } catch {
-      const msg = 'Could not check Last.fm status right now.';
       if (manual) {
-        if (lfmStatusMsg) lfmStatusMsg.textContent = msg;
-        window.dispatchEvent(new CustomEvent('app:snackbar', { detail: { message: msg } }));
+        announceLastFmStatus('Could not check Last.fm status right now.');
       }
     } finally {
       lfmInFlight = false;
-      for (const btn of retryButtons) btn.disabled = false;
+      for (const btn of retryButtons) {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        if (btn.dataset.idleLabel) {
+          btn.textContent = btn.dataset.idleLabel;
+        }
+      }
     }
   }
 
